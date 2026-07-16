@@ -16,7 +16,7 @@ interface EarthquakeListItemProps {
 export const EarthquakeListItem: React.FC<EarthquakeListItemProps> = React.memo(
   ({ earthquake, onPress }) => {
     const { colors } = useAppTheme();
-    const { time } = formatEarthquakeDateTime(earthquake.occurredAt);
+    const { date, time } = formatEarthquakeDateTime(earthquake.occurredAt);
 
     return (
       <Pressable
@@ -35,7 +35,10 @@ export const EarthquakeListItem: React.FC<EarthquakeListItemProps> = React.memo(
             {earthquake.location}
           </Text>
         </View>
-        <Text style={[styles.time, { color: colors.onSurfaceVariant }]}>{time}</Text>
+        <View style={styles.timeContainer}>
+          <Text style={[styles.time, { color: colors.onSurface }]}>{time}</Text>
+          <Text style={[styles.date, { color: colors.onSurfaceVariant }]}>{date}</Text>
+        </View>
       </Pressable>
     );
   }
@@ -62,7 +65,17 @@ const styles = StyleSheet.create({
   location: {
     fontSize: 13,
   },
+  timeContainer: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    minWidth: 60,
+  },
   time: {
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  date: {
+    fontSize: 11,
+    marginTop: 2,
   },
 });

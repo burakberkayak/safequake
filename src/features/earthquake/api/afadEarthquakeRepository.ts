@@ -12,44 +12,75 @@ export class AfadEarthquakeRepository implements EarthquakeRepository {
   constructor(private readonly http: AxiosInstance) {}
 
   async getEarthquakes(filters: EarthquakeFilters): Promise<Earthquake[]> {
-    // Construct query parameters
     const days = filters.timeRange === '24h' ? 1 : (filters.timeRange === '7d' ? 7 : 30);
-    const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const cutoffDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
     
-    // Format YYYY-MM-DD
-    const yyyy = cutoffDate.getFullYear();
-    const mm = String(cutoffDate.getMonth() + 1).padStart(2, '0');
-    const dd = String(cutoffDate.getDate()).padStart(2, '0');
-    const queryDate = `${yyyy}-${mm}-${dd}`;
+    // YYYY-MM-DD HH:mm:ss formatında tarih oluşturucu
+    const formatDate = (date: Date) => {
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const dd = String(date.getDate()).padStart(2, '0');
+      const hh = String(date.getHours()).padStart(2, '0');
+      const min = String(date.getMinutes()).padStart(2, '0');
+      const ss = String(date.getSeconds()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
+    };
 
-    // Orhan Aydoğdu API'sinin tüm kaynaklardan son depremleri getiren endpoint'ini çağırıyoruz
-    const response = await this.http.get('/deprem', {
-      params: {
-        date: queryDate,
-        limit: 100
-      }
-    });
-    const rawList = response.data?.result;
-    
-    let earthquakes = this.mapResponseToEarthquakes(rawList);
+    const dateStarts = formatDate(cutoffDate);
+    const dateEnds = formatDate(now);
 
-    // Minimum büyüklük filtresi (API'den dönen veriyi yerel olarak filtreliyoruz)
-    if (filters.minMagnitude) {
-      earthquakes = earthquakes.filter((eq) => eq.magnitude >= filters.minMagnitude!);
+    // İstek gövdesini (payload) oluşturuyoruz
+    const payload: any = {
+      match: {
+        date_starts: dateStarts,
+        date_ends: dateEnds
+      },
+      sort: 'date_-1',
+      limit: 100
+    };
+
+    // Sunucu tarafında büyüklük filtresi ekleme
+    if (filters.minMagnitude !== undefined) {
+      payload.match.mag = Number(filters.minMagnitude);
     }
 
-    // Mesafe/Yarıçap filtresi (konum bazlı arama yapılıyorsa yerel olarak filtreliyoruz)
+    // Sunucu tarafında konum/yarıçap filtresi ekleme
     if (filters.radiusKm && filters.originLatitude && filters.originLongitude) {
-      earthquakes = filterByRadius(
-        earthquakes,
-        filters.originLatitude,
-        filters.originLongitude,
-        filters.radiusKm
-      );
+      payload.geoNear = {
+        lon: Number(filters.originLongitude),
+        lat: Number(filters.originLatitude),
+        radiusMeter: Number(filters.radiusKm) * 1000
+      };
     }
 
-    // Zaman dilimi filtresi (24s, 7g, 30g)
-    return filterByTimeRange(earthquakes, filters.timeRange);
+    try {
+      // Sunucu tarafında filtrelenmiş veriyi çekiyoruz
+      const response = await this.http.post('/deprem/data/search', payload);
+
+      const rawList = response.data?.result ?? [];
+      let earthquakes = this.mapResponseToEarthquakes(rawList);
+
+      // Güvenlik önlemi olarak yerel filtreleri de koruyoruz
+      if (filters.minMagnitude !== undefined) {
+        earthquakes = earthquakes.filter((eq) => eq.magnitude >= filters.minMagnitude!);
+      }
+
+      if (filters.radiusKm && filters.originLatitude && filters.originLongitude) {
+        earthquakes = filterByRadius(
+          earthquakes,
+          filters.originLatitude,
+          filters.originLongitude,
+          filters.radiusKm
+        );
+      }
+
+      // Zaman dilimi filtresi (24s, 7g, 30g)
+      return filterByTimeRange(earthquakes, filters.timeRange, now);
+    } catch (error) {
+      console.error('Earthquake search API error:', error);
+      return [];
+    }
   }
 
   async getLatestEarthquake(): Promise<Earthquake | null> {

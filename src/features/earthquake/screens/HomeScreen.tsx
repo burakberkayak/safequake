@@ -125,7 +125,7 @@ export const HomeScreen: React.FC = () => {
             {/* Filtre Başlığı ve Butonu */}
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-                {rangeLabels[filters.timeRange]}
+                {`${rangeLabels[filters.timeRange]} (${earthquakes && earthquakes.length >= 100 ? '100+' : earthquakes?.length ?? 0})`}
               </Text>
               <TouchableOpacity 
                 style={[styles.filterButton, { backgroundColor: colors.surface, borderColor: colors.border }]}

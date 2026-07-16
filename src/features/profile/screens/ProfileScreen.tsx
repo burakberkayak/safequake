@@ -323,6 +323,7 @@ const styles = StyleSheet.create({
   themeText: {
     fontSize: 12,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   switchRow: {
     flexDirection: 'row',

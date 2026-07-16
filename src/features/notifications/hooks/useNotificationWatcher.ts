@@ -1,16 +1,16 @@
-import { useEffect } from 'react';
-import { useLatestEarthquake } from '../../earthquake/hooks/useEarthquakes';
-import { useAppSelector } from '../../../store/hooks';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
-import * as Location from 'expo-location';
-import { distanceKm } from '../../earthquake/utils/earthquakeFilters';
-import { translations } from '../../../hooks/useTranslation';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
+import { useEffect } from "react";
+import { translations } from "../../../hooks/useTranslation";
+import { useAppSelector } from "../../../store/hooks";
+import { useLatestEarthquake } from "../../earthquake/hooks/useEarthquakes";
+import { distanceKm } from "../../earthquake/utils/earthquakeFilters";
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    //shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
     shouldShowBanner: true,
@@ -28,22 +28,27 @@ export const useNotificationWatcher = () => {
     const checkAndNotify = async () => {
       try {
         // Read last notified ID
-        const lastId = await AsyncStorage.getItem('last_notified_earthquake_id');
-        
+        const lastId = await AsyncStorage.getItem(
+          "last_notified_earthquake_id",
+        );
+
         if (lastId === latest.id) return; // Already notified for this earthquake
-        
+
         // Check global notification permission toggle in settings
         if (!settings.notificationPermissionGranted) return;
 
         // Check magnitude threshold
-        if (settings.minMagnitudeNotify !== undefined && latest.magnitude < settings.minMagnitudeNotify) {
+        if (
+          settings.minMagnitudeNotify !== undefined &&
+          latest.magnitude < settings.minMagnitudeNotify
+        ) {
           return;
         }
 
         // Check distance threshold
         if (settings.maxDistanceNotifyKm !== undefined) {
           const { status } = await Location.getForegroundPermissionsAsync();
-          if (status === 'granted') {
+          if (status === "granted") {
             const loc = await Location.getCurrentPositionAsync({
               accuracy: Location.Accuracy.Balanced,
             });
@@ -51,7 +56,7 @@ export const useNotificationWatcher = () => {
               loc.coords.latitude,
               loc.coords.longitude,
               latest.latitude,
-              latest.longitude
+              latest.longitude,
             );
             if (distance > settings.maxDistanceNotifyKm) {
               return; // Outside notify range
@@ -60,9 +65,9 @@ export const useNotificationWatcher = () => {
         }
 
         // Save notified ID to prevent repeat notifications
-        await AsyncStorage.setItem('last_notified_earthquake_id', latest.id);
+        await AsyncStorage.setItem("last_notified_earthquake_id", latest.id);
 
-        const lang = settings.language || 'tr';
+        const lang = settings.language || "tr";
         const titleLabel = translations[lang].newEarthquakeAlert;
         const magLabel = translations[lang].alertMag;
         const depthLabel = translations[lang].alertDepth;
@@ -78,7 +83,6 @@ export const useNotificationWatcher = () => {
           },
           trigger: null, // immediate
         });
-
       } catch (err) {
         // Quiet fail
       }
