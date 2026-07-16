@@ -32,9 +32,6 @@ export const useNotificationWatcher = () => {
         
         if (lastId === latest.id) return; // Already notified for this earthquake
         
-        // Save immediately to prevent race condition/spam
-        await AsyncStorage.setItem('last_notified_earthquake_id', latest.id);
-
         // Check global notification permission toggle in settings
         if (!settings.notificationPermissionGranted) return;
 
@@ -61,6 +58,9 @@ export const useNotificationWatcher = () => {
             }
           }
         }
+
+        // Save notified ID to prevent repeat notifications
+        await AsyncStorage.setItem('last_notified_earthquake_id', latest.id);
 
         const lang = settings.language || 'tr';
         const titleLabel = translations[lang].newEarthquakeAlert;

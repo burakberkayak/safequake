@@ -2,16 +2,23 @@ import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import { persistStore, persistReducer, FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER } from 'redux-persist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { secureStorage } from './secureStorage';
+
 import authReducer from './slices/authSlice';
 import settingsReducer from './slices/settingsSlice';
 import emergencyReducer from './slices/emergencySlice';
 import checklistReducer from './slices/checklistSlice';
 import filterReducer from './slices/filterSlice';
 
+const emergencyPersistConfig = {
+  key: 'emergency',
+  storage: secureStorage,
+};
+
 const rootReducer = combineReducers({
   auth: authReducer,
   settings: settingsReducer,
-  emergency: emergencyReducer,
+  emergency: persistReducer(emergencyPersistConfig, emergencyReducer),
   checklist: checklistReducer,
   filters: filterReducer,
 });
@@ -19,10 +26,9 @@ const rootReducer = combineReducers({
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  // We want to persist preferences, emergency card data, and checklist items.
-  // Auth state can also be persisted, but Firebase Auth has its own persistence.
-  // Let's persist settings, emergency, checklist, and filters.
-  whitelist: ['settings', 'emergency', 'checklist', 'filters'],
+  // We want to persist preferences and checklist items on regular storage.
+  // The emergency medical card data is persisted securely via SecureStore above.
+  whitelist: ['settings', 'checklist', 'filters'],
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

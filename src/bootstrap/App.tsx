@@ -6,13 +6,16 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Text } from 'react-native';
 import { ThemeProvider, useAppTheme } from '../theme/ThemeProvider';
 import { RootTabNavigator } from '../navigation/RootTabNavigator';
 import { AuthNavigator } from '../features/auth/navigation/AuthNavigator';
 import { useAuth } from '../features/auth/hooks/useAuth';
 import { useNotificationWatcher } from '../features/notifications/hooks/useNotificationWatcher';
 import { store, persistor } from '../store';
+import { ErrorBoundary } from '../components/ErrorBoundary';
+import { useNetwork } from '../hooks/useNetwork';
+import { Ionicons } from '@expo/vector-icons';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,32 +37,32 @@ import { onAuthStateChanged, User } from 'firebase/auth';
  * Kompozisyon kökü. Redux store ve i18n provider'ları buraya enjekte edildi.
  */
 export default function App() {
-  console.log('[DEBUG] App: Rendering root Providers and PersistGate...');
   return (
-    <Provider store={store}>
-      <PersistGate 
-        loading={
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FAFAFA' }}>
-            <ActivityIndicator size="large" color="#2E7D32" />
-          </View>
-        } 
-        persistor={persistor}
-      >
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <SafeAreaProvider>
-            <QueryClientProvider client={queryClient}>
-              <ThemeProviderWrapper />
-            </QueryClientProvider>
-          </SafeAreaProvider>
-        </GestureHandlerRootView>
-      </PersistGate>
-    </Provider>
+    <ErrorBoundary>
+      <Provider store={store}>
+        <PersistGate 
+          loading={
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FAFAFA' }}>
+              <ActivityIndicator size="large" color="#2E7D32" />
+            </View>
+          } 
+          persistor={persistor}
+        >
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <SafeAreaProvider>
+              <QueryClientProvider client={queryClient}>
+                <ThemeProviderWrapper />
+              </QueryClientProvider>
+            </SafeAreaProvider>
+          </GestureHandlerRootView>
+        </PersistGate>
+      </Provider>
+    </ErrorBoundary>
   );
 }
 
 const ThemeProviderWrapper: React.FC = () => {
   const themeMode = useAppSelector((state) => state.settings.themeMode);
-  console.log('[DEBUG] ThemeProviderWrapper: themeMode is:', themeMode);
   return (
     <ThemeProvider initialMode={themeMode}>
       <NavigationRoot />
@@ -76,7 +79,6 @@ const NavigationRoot: React.FC = () => {
   const { user, loading } = useAuth();
   const dispatch = useAppDispatch();
 
-  console.log('[DEBUG] NavigationRoot: auth loading state is:', loading, '| user:', user ? user.email : 'null');
 
   // Run the session subscriber effect exactly ONCE here at the root level!
   useEffect(() => {
@@ -152,7 +154,32 @@ const NavigationRoot: React.FC = () => {
   return (
     <NavigationContainer theme={navigationTheme}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
+      <OfflineBanner />
       {user ? <RootTabNavigator /> : <AuthNavigator />}
     </NavigationContainer>
+  );
+};
+
+const OfflineBanner: React.FC = () => {
+  const { isConnected } = useNetwork();
+  const { colors } = useAppTheme();
+
+  if (isConnected) return null;
+
+  return (
+    <View style={{ 
+      backgroundColor: colors.red, 
+      paddingVertical: 6, 
+      paddingHorizontal: 16, 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      flexDirection: 'row', 
+      gap: 8 
+    }}>
+      <Ionicons name="cloud-offline-outline" size={16} color="#FFFFFF" />
+      <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: 'bold' }}>
+        İnternet Bağlantısı Yok (Çevrimdışı Mod)
+      </Text>
+    </View>
   );
 };

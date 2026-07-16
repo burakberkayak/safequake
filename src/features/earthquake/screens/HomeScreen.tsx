@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { View, FlatList, StyleSheet, RefreshControl, Text, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { View, FlatList, StyleSheet, RefreshControl, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -55,6 +55,24 @@ export const HomeScreen: React.FC = () => {
     refetch,
   } = useEarthquakes(filters);
 
+  // Pagination states
+  const [visibleCount, setVisibleCount] = useState(15);
+
+  useEffect(() => {
+    setVisibleCount(15);
+  }, [filters]);
+
+  const paginatedEarthquakes = useMemo(() => {
+    return earthquakes?.slice(0, visibleCount) ?? [];
+  }, [earthquakes, visibleCount]);
+
+  const handleLoadMore = useCallback(() => {
+    if (!earthquakes) return;
+    if (visibleCount < earthquakes.length) {
+      setVisibleCount((prev) => prev + 15);
+    }
+  }, [earthquakes, visibleCount]);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await refetch();
@@ -74,11 +92,21 @@ export const HomeScreen: React.FC = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <FlatList
-        data={earthquakes ?? []}
+        data={paginatedEarthquakes}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <EarthquakeListItem earthquake={item} onPress={handleSelectEarthquake} />
         )}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.2}
+        ListFooterComponent={() => {
+          if (!earthquakes || visibleCount >= earthquakes.length) return null;
+          return (
+            <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color={colors.primary} />
+            </View>
+          );
+        }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

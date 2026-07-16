@@ -20,16 +20,9 @@ export const useAuth = () => {
     dispatch(setLoading(true));
     
     if (!isFirebaseConfigured) {
-      // Offline fallback
-      setTimeout(() => {
-        dispatch(setUser({
-          uid: 'demo_user_123',
-          email: email.toLowerCase().trim(),
-          displayName: 'Demo Kullanıcı (Offline)',
-          phoneNumber: '+905555555555',
-        }));
-      }, 500);
-      return;
+      const errorMsg = 'Firebase configuration is missing. Please check your .env file.';
+      dispatch(setError(errorMsg));
+      throw new Error(errorMsg);
     }
 
     try {
@@ -51,16 +44,9 @@ export const useAuth = () => {
     dispatch(setLoading(true));
 
     if (!isFirebaseConfigured) {
-      // Offline fallback
-      setTimeout(() => {
-        dispatch(setUser({
-          uid: 'demo_user_123',
-          email: email.toLowerCase().trim(),
-          displayName: name,
-          phoneNumber: '+905555555555',
-        }));
-      }, 500);
-      return;
+      const errorMsg = 'Firebase configuration is missing. Please check your .env file.';
+      dispatch(setError(errorMsg));
+      throw new Error(errorMsg);
     }
 
     try {

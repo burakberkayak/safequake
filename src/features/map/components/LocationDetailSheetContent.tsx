@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Linking, Alert, Platform } from 'react-native';
-import { MapLocation } from '../utils/mockMapLocations';
+import { MapLocation } from '../types/map.types';
 import { useAppTheme } from '../../../theme/ThemeProvider';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -35,8 +35,7 @@ export const LocationDetailSheetContent: React.FC<LocationDetailSheetContentProp
 
   const typeDetails = {
     shelter: { icon: 'shield-checkmark', color: '#2E7D32', label: 'Toplanma Alanı' },
-    hospital_state: { icon: 'medical', color: '#C62828', label: 'Devlet Hastanesi' },
-    hospital_private: { icon: 'medical-outline', color: '#0288D1', label: 'Özel Hastane' },
+    hospital: { icon: 'medical', color: '#C62828', label: 'Hastane' },
     pharmacy: { icon: 'bandage', color: '#EF6C00', label: 'Nöbetçi Eczane' },
   }[location.type];
 

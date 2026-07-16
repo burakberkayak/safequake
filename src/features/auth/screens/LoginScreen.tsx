@@ -15,31 +15,38 @@ import { useAuth } from '../hooks/useAuth';
 import { useAppTheme } from '../../../theme/ThemeProvider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+const loginSchema = z.object({
+  email: z.string().min(1, 'E-posta adresi gereklidir.').email('Geçersiz e-posta adresi.'),
+  password: z.string().min(6, 'Şifre en az 6 karakter olmalıdır.'),
+});
+
+type LoginSchemaType = z.infer<typeof loginSchema>;
 
 export const LoginScreen: React.FC = () => {
   const { colors } = useAppTheme();
   const navigation = useNavigation<any>();
   const { loginWithEmail, loading, error } = useAuth();
-  
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [localError, setLocalError] = useState<string | null>(null);
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      setLocalError('Lütfen tüm alanları doldurun.');
-      return;
-    }
-    setLocalError(null);
+  const { control, handleSubmit, formState: { errors } } = useForm<LoginSchemaType>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
+
+  const onSubmit = async (data: LoginSchemaType) => {
     try {
-      await loginWithEmail(email.trim(), password);
+      await loginWithEmail(data.email.trim(), data.password);
     } catch (err) {
-      // Error is handled inside hook and exposed as 'error'
+      // Handled inside auth slice/hook
     }
   };
-
-  const displayError = localError || error;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
@@ -59,55 +66,79 @@ export const LoginScreen: React.FC = () => {
           </View>
 
           <View style={styles.formContainer}>
-            {displayError && (
+            {error && (
               <View style={[styles.errorContainer, { backgroundColor: colors.redContainer }]}>
                 <Ionicons name="alert-circle" size={20} color={colors.red} />
-                <Text style={[styles.errorText, { color: colors.red }]}>{displayError}</Text>
+                <Text style={[styles.errorText, { color: colors.red }]}>{error}</Text>
               </View>
             )}
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>E-Posta</Text>
-              <View style={[styles.inputWrapper, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-                <Ionicons name="mail-outline" size={20} color={colors.onSurfaceVariant} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: colors.onSurface }]}
-                  placeholder="ornek@email.com"
-                  placeholderTextColor={colors.onSurfaceVariant + '70'}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
+              <Controller
+                control={control}
+                name="email"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View style={[styles.inputWrapper, { borderColor: errors.email ? colors.red : colors.border, backgroundColor: colors.surface }]}>
+                    <Ionicons name="mail-outline" size={20} color={colors.onSurfaceVariant} style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.input, { color: colors.onSurface }]}
+                      placeholder="ornek@email.com"
+                      placeholderTextColor={colors.onSurfaceVariant + '70'}
+                      onBlur={onBlur}
+                      onChangeText={onChange}
+                      value={value}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                )}
+              />
+              {errors.email && (
+                <Text style={{ color: colors.red, fontSize: 12, marginTop: 4, marginLeft: 4 }}>
+                  {errors.email.message}
+                </Text>
+              )}
             </View>
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>Şifre</Text>
-              <View style={[styles.inputWrapper, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-                <Ionicons name="lock-closed-outline" size={20} color={colors.onSurfaceVariant} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: colors.onSurface }]}
-                  placeholder="••••••"
-                  placeholderTextColor={colors.onSurfaceVariant + '70'}
-                  secureTextEntry={!showPassword}
-                  value={password}
-                  onChangeText={setPassword}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                  <Ionicons 
-                    name={showPassword ? "eye-off-outline" : "eye-outline"} 
-                    size={20} 
-                    color={colors.onSurfaceVariant} 
-                  />
-                </TouchableOpacity>
-              </View>
+              <Controller
+                control={control}
+                name="password"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View style={[styles.inputWrapper, { borderColor: errors.password ? colors.red : colors.border, backgroundColor: colors.surface }]}>
+                    <Ionicons name="lock-closed-outline" size={20} color={colors.onSurfaceVariant} style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.input, { color: colors.onSurface }]}
+                      placeholder="••••••"
+                      placeholderTextColor={colors.onSurfaceVariant + '70'}
+                      secureTextEntry={!showPassword}
+                      onBlur={onBlur}
+                      onChangeText={onChange}
+                      value={value}
+                      autoCapitalize="none"
+                    />
+                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+                      <Ionicons 
+                        name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                        size={20} 
+                        color={colors.onSurfaceVariant} 
+                      />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              />
+              {errors.password && (
+                <Text style={{ color: colors.red, fontSize: 12, marginTop: 4, marginLeft: 4 }}>
+                  {errors.password.message}
+                </Text>
+              )}
             </View>
 
             <TouchableOpacity 
               style={[styles.button, { backgroundColor: colors.primary }]}
-              onPress={handleLogin}
+              onPress={handleSubmit(onSubmit)}
               disabled={loading}
             >
               {loading ? (

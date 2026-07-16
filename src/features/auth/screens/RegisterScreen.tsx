@@ -15,41 +15,45 @@ import { useAuth } from '../hooks/useAuth';
 import { useAppTheme } from '../../../theme/ThemeProvider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+const registerSchema = z.object({
+  name: z.string().min(1, 'Ad soyad gereklidir.'),
+  email: z.string().min(1, 'E-posta adresi gereklidir.').email('Geçersiz e-posta adresi.'),
+  password: z.string().min(6, 'Şifre en az 6 karakter olmalıdır.'),
+  confirmPassword: z.string().min(6, 'Şifre tekrarı gereklidir.'),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: 'Şifreler eşleşmiyor.',
+  path: ['confirmPassword'],
+});
+
+type RegisterSchemaType = z.infer<typeof registerSchema>;
 
 export const RegisterScreen: React.FC = () => {
   const { colors } = useAppTheme();
   const navigation = useNavigation<any>();
   const { registerWithEmail, loading, error } = useAuth();
-  
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [localError, setLocalError] = useState<string | null>(null);
 
-  const handleRegister = async () => {
-    if (!name || !email || !password || !confirmPassword) {
-      setLocalError('Lütfen tüm alanları doldurun.');
-      return;
-    }
-    if (password.length < 6) {
-      setLocalError('Şifre en az 6 karakter olmalıdır.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setLocalError('Şifreler eşleşmiyor.');
-      return;
-    }
-    setLocalError(null);
+  const { control, handleSubmit, formState: { errors } } = useForm<RegisterSchemaType>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+    },
+  });
+
+  const onSubmit = async (data: RegisterSchemaType) => {
     try {
-      await registerWithEmail(email.trim(), password, name.trim());
+      await registerWithEmail(data.email.trim(), data.password, data.name.trim());
     } catch (err) {
-      // Error is handled inside hook and exposed as 'error'
+      // Handled inside slice/hook
     }
   };
-
-  const displayError = localError || error;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
@@ -69,86 +73,134 @@ export const RegisterScreen: React.FC = () => {
           </View>
 
           <View style={styles.formContainer}>
-            {displayError && (
+            {error && (
               <View style={[styles.errorContainer, { backgroundColor: colors.redContainer }]}>
                 <Ionicons name="alert-circle" size={20} color={colors.red} />
-                <Text style={[styles.errorText, { color: colors.red }]}>{displayError}</Text>
+                <Text style={[styles.errorText, { color: colors.red }]}>{error}</Text>
               </View>
             )}
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>Ad Soyad</Text>
-              <View style={[styles.inputWrapper, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-                <Ionicons name="person-outline" size={20} color={colors.onSurfaceVariant} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: colors.onSurface }]}
-                  placeholder="ör. Ahmet Yılmaz"
-                  placeholderTextColor={colors.onSurfaceVariant + '70'}
-                  value={name}
-                  onChangeText={setName}
-                  autoCapitalize="words"
-                />
-              </View>
+              <Controller
+                control={control}
+                name="name"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View style={[styles.inputWrapper, { borderColor: errors.name ? colors.red : colors.border, backgroundColor: colors.surface }]}>
+                    <Ionicons name="person-outline" size={20} color={colors.onSurfaceVariant} style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.input, { color: colors.onSurface }]}
+                      placeholder="ör. Ahmet Yılmaz"
+                      placeholderTextColor={colors.onSurfaceVariant + '70'}
+                      onBlur={onBlur}
+                      onChangeText={onChange}
+                      value={value}
+                      autoCapitalize="words"
+                    />
+                  </View>
+                )}
+              />
+              {errors.name && (
+                <Text style={{ color: colors.red, fontSize: 12, marginTop: 4, marginLeft: 4 }}>
+                  {errors.name.message}
+                </Text>
+              )}
             </View>
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>E-Posta</Text>
-              <View style={[styles.inputWrapper, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-                <Ionicons name="mail-outline" size={20} color={colors.onSurfaceVariant} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: colors.onSurface }]}
-                  placeholder="ör. ahmet@mail.com"
-                  placeholderTextColor={colors.onSurfaceVariant + '70'}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
+              <Controller
+                control={control}
+                name="email"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View style={[styles.inputWrapper, { borderColor: errors.email ? colors.red : colors.border, backgroundColor: colors.surface }]}>
+                    <Ionicons name="mail-outline" size={20} color={colors.onSurfaceVariant} style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.input, { color: colors.onSurface }]}
+                      placeholder="ör. ahmet@mail.com"
+                      placeholderTextColor={colors.onSurfaceVariant + '70'}
+                      onBlur={onBlur}
+                      onChangeText={onChange}
+                      value={value}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                )}
+              />
+              {errors.email && (
+                <Text style={{ color: colors.red, fontSize: 12, marginTop: 4, marginLeft: 4 }}>
+                  {errors.email.message}
+                </Text>
+              )}
             </View>
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>Şifre</Text>
-              <View style={[styles.inputWrapper, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-                <Ionicons name="lock-closed-outline" size={20} color={colors.onSurfaceVariant} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: colors.onSurface }]}
-                  placeholder="••••••"
-                  placeholderTextColor={colors.onSurfaceVariant + '70'}
-                  secureTextEntry={!showPassword}
-                  value={password}
-                  onChangeText={setPassword}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                  <Ionicons 
-                    name={showPassword ? "eye-off-outline" : "eye-outline"} 
-                    size={20} 
-                    color={colors.onSurfaceVariant} 
-                  />
-                </TouchableOpacity>
-              </View>
+              <Controller
+                control={control}
+                name="password"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View style={[styles.inputWrapper, { borderColor: errors.password ? colors.red : colors.border, backgroundColor: colors.surface }]}>
+                    <Ionicons name="lock-closed-outline" size={20} color={colors.onSurfaceVariant} style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.input, { color: colors.onSurface }]}
+                      placeholder="••••••"
+                      placeholderTextColor={colors.onSurfaceVariant + '70'}
+                      secureTextEntry={!showPassword}
+                      onBlur={onBlur}
+                      onChangeText={onChange}
+                      value={value}
+                      autoCapitalize="none"
+                    />
+                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+                      <Ionicons 
+                        name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                        size={20} 
+                        color={colors.onSurfaceVariant} 
+                      />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              />
+              {errors.password && (
+                <Text style={{ color: colors.red, fontSize: 12, marginTop: 4, marginLeft: 4 }}>
+                  {errors.password.message}
+                </Text>
+              )}
             </View>
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>Şifre Tekrar</Text>
-              <View style={[styles.inputWrapper, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-                <Ionicons name="lock-closed-outline" size={20} color={colors.onSurfaceVariant} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: colors.onSurface }]}
-                  placeholder="••••••"
-                  placeholderTextColor={colors.onSurfaceVariant + '70'}
-                  secureTextEntry={!showPassword}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  autoCapitalize="none"
-                />
-              </View>
+              <Controller
+                control={control}
+                name="confirmPassword"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View style={[styles.inputWrapper, { borderColor: errors.confirmPassword ? colors.red : colors.border, backgroundColor: colors.surface }]}>
+                    <Ionicons name="lock-closed-outline" size={20} color={colors.onSurfaceVariant} style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.input, { color: colors.onSurface }]}
+                      placeholder="••••••"
+                      placeholderTextColor={colors.onSurfaceVariant + '70'}
+                      secureTextEntry={!showPassword}
+                      onBlur={onBlur}
+                      onChangeText={onChange}
+                      value={value}
+                      autoCapitalize="none"
+                    />
+                  </View>
+                )}
+              />
+              {errors.confirmPassword && (
+                <Text style={{ color: colors.red, fontSize: 12, marginTop: 4, marginLeft: 4 }}>
+                  {errors.confirmPassword.message}
+                </Text>
+              )}
             </View>
 
             <TouchableOpacity 
               style={[styles.button, { backgroundColor: colors.primary }]}
-              onPress={handleRegister}
+              onPress={handleSubmit(onSubmit)}
               disabled={loading}
             >
               {loading ? (

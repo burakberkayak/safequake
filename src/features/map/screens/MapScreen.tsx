@@ -12,7 +12,8 @@ import { EarthquakeDetailSheetContent } from '../components/EarthquakeDetailShee
 import { LocationDetailSheetContent } from '../components/LocationDetailSheetContent';
 import { ErrorState, LoadingState } from '../../../components/ScreenState';
 import { MapTabParamList } from '../../../navigation/types';
-import { generateMapLocations, MapLocation } from '../utils/mockMapLocations';
+import { MapLocation } from '../types/map.types';
+import { fetchNearbyPlaces } from '../api/placesRepository';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -76,11 +77,34 @@ export const MapScreen: React.FC = () => {
     fetchLocation();
   }, [focusedEarthquakeId]);
 
-  // Generate nearby shelters, hospitals, pharmacies
-  const mapLocations = useMemo(() => {
-    const lat = userLocation?.latitude ?? 41.0082; // Default to Istanbul
-    const lon = userLocation?.longitude ?? 28.9784;
-    return generateMapLocations(lat, lon);
+  const [mapLocations, setMapLocations] = useState<MapLocation[]>([]);
+  const [loadingLocations, setLoadingLocations] = useState(false);
+
+  useEffect(() => {
+    if (!userLocation) return;
+    let active = true;
+    
+    // Rate Limiting: Debounce Places API calls by 1500ms to avoid API spam on fast location updates
+    const delayDebounceFn = setTimeout(async () => {
+      setLoadingLocations(true);
+      try {
+        const places = await fetchNearbyPlaces(userLocation.latitude, userLocation.longitude);
+        if (active) {
+          setMapLocations(places);
+        }
+      } catch (err) {
+        console.error('Error fetching places:', err);
+      } finally {
+        if (active) {
+          setLoadingLocations(false);
+        }
+      }
+    }, 1500);
+
+    return () => {
+      active = false;
+      clearTimeout(delayDebounceFn);
+    };
   }, [userLocation]);
 
   // Earthquakes query
@@ -190,14 +214,13 @@ export const MapScreen: React.FC = () => {
         {/* Render Shelters, Hospitals, Pharmacies */}
         {mapLocations.map((loc) => {
           if (loc.type === 'shelter' && !showShelters) return null;
-          if ((loc.type === 'hospital_state' || loc.type === 'hospital_private') && !showHospitals) return null;
+          if (loc.type === 'hospital' && !showHospitals) return null;
           if (loc.type === 'pharmacy' && !showPharmacies) return null;
 
           // Custom styling depending on location type
           const details = {
             shelter: { icon: 'shield-checkmark', color: '#2E7D32' },
-            hospital_state: { icon: 'medical', color: '#C62828' },
-            hospital_private: { icon: 'medical', color: '#0288D1' },
+            hospital: { icon: 'medical', color: '#C62828' },
             pharmacy: { icon: 'bandage', color: '#EF6C00' },
           }[loc.type];
 
