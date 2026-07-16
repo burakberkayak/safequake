@@ -8,6 +8,7 @@ import { NavigatorScreenParams } from '@react-navigation/native';
 export type MapTabParamList = {
   MapHome: { 
     focusedEarthquakeId?: string;
+    focusedEarthquake?: any;
     focusedLocation?: {
       latitude: number;
       longitude: number;

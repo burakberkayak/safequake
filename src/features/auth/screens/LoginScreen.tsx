@@ -29,7 +29,7 @@ type LoginSchemaType = z.infer<typeof loginSchema>;
 export const LoginScreen: React.FC = () => {
   const { colors } = useAppTheme();
   const navigation = useNavigation<any>();
-  const { loginWithEmail, loading, error } = useAuth();
+  const { loginWithEmail, loginAnonymously, loginWithGoogle, loading, error } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
 
   const { control, handleSubmit, formState: { errors } } = useForm<LoginSchemaType>({
@@ -43,6 +43,22 @@ export const LoginScreen: React.FC = () => {
   const onSubmit = async (data: LoginSchemaType) => {
     try {
       await loginWithEmail(data.email.trim(), data.password);
+    } catch (err) {
+      // Handled inside auth slice/hook
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      await loginWithGoogle();
+    } catch (err) {
+      // Handled inside auth slice/hook
+    }
+  };
+
+  const handleAnonymousLogin = async () => {
+    try {
+      await loginAnonymously();
     } catch (err) {
       // Handled inside auth slice/hook
     }
@@ -146,6 +162,32 @@ export const LoginScreen: React.FC = () => {
               ) : (
                 <Text style={[styles.buttonText, { color: colors.onPrimary }]}>Giriş Yap</Text>
               )}
+            </TouchableOpacity>
+
+            {/* divider: veya */}
+            <View style={styles.dividerContainer}>
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+              <Text style={[styles.dividerText, { color: colors.onSurfaceVariant }]}>veya</Text>
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            </View>
+
+            {/* Google ile Giriş Yap */}
+            <TouchableOpacity 
+              style={[styles.googleButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={handleGoogleLogin}
+              disabled={loading}
+            >
+              <Ionicons name="logo-google" size={20} color={colors.primary} />
+              <Text style={[styles.googleButtonText, { color: colors.onSurface }]}>Google ile Giriş Yap</Text>
+            </TouchableOpacity>
+
+            {/* Misafir Girişi */}
+            <TouchableOpacity 
+              style={styles.guestButton}
+              onPress={handleAnonymousLogin}
+              disabled={loading}
+            >
+              <Text style={[styles.guestButtonText, { color: colors.primary }]}>Misafir Olarak Devam Et</Text>
             </TouchableOpacity>
 
             <View style={styles.footer}>
@@ -258,5 +300,43 @@ const styles = StyleSheet.create({
   },
   link: {
     fontWeight: 'bold',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+    gap: 8,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    fontSize: 13,
+  },
+  googleButton: {
+    height: 48,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  googleButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  guestButton: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  guestButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });

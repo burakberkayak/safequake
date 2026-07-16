@@ -35,7 +35,10 @@ export const HomeScreen: React.FC = () => {
     (earthquake: Earthquake) => {
       navigation.navigate('Map', {
         screen: 'MapHome',
-        params: { focusedEarthquakeId: earthquake.id },
+        params: { 
+          focusedEarthquakeId: earthquake.id,
+          focusedEarthquake: earthquake
+        },
       });
     },
     [navigation]

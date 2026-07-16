@@ -1,12 +1,17 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView } from 'react-native';
-import MapView, { Marker, Region } from 'react-native-maps';
+import { Platform, StyleSheet, View, Text, TouchableOpacity, ScrollView } from 'react-native';
+
+// Safely require WebView for native platforms to avoid Web build evaluation crashes
+let WebView: any = null;
+if (Platform.OS !== 'web') {
+  WebView = require('react-native-webview').WebView;
+}
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../../theme/ThemeProvider';
 import { useEarthquakes } from '../../earthquake/hooks/useEarthquakes';
 import { Earthquake } from '../../earthquake/types/earthquake.types';
-import { getMagnitudeColor } from '../../../theme/colors';
+import { getLeafletMapTemplate } from '../../earthquake/utils/mapTemplate';
 import { BottomSheet } from '../../../components/BottomSheet';
 import { EarthquakeDetailSheetContent } from '../components/EarthquakeDetailSheetContent';
 import { LocationDetailSheetContent } from '../components/LocationDetailSheetContent';
@@ -17,21 +22,13 @@ import { fetchNearbyPlaces } from '../api/placesRepository';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 
-const TURKEY_REGION: Region = {
-  latitude: 39.0,
-  longitude: 35.0,
-  latitudeDelta: 8,
-  longitudeDelta: 8,
-};
-
-const FOCUSED_DELTA = 1.5;
-
 export const MapScreen: React.FC = () => {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const mapRef = useRef<MapView>(null);
+  const webViewRef = useRef<any>(null);
   const route = useRoute<RouteProp<MapTabParamList, 'MapHome'>>();
   const focusedEarthquakeId = route.params?.focusedEarthquakeId;
+  const focusedEarthquakeParam = route.params?.focusedEarthquake;
 
   // Selected item detail sheet states
   const [selectedEarthquake, setSelectedEarthquake] = useState<Earthquake | null>(null);
@@ -45,6 +42,7 @@ export const MapScreen: React.FC = () => {
 
   // User location states
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [isMapReady, setIsMapReady] = useState(false);
 
   // Get user location on mount
   useEffect(() => {
@@ -59,23 +57,13 @@ export const MapScreen: React.FC = () => {
             latitude: loc.coords.latitude,
             longitude: loc.coords.longitude,
           });
-
-          // Focus on user location if not focusing on a specific earthquake
-          if (!focusedEarthquakeId && mapRef.current) {
-            mapRef.current.animateToRegion({
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude,
-              latitudeDelta: 0.05,
-              longitudeDelta: 0.05,
-            }, 600);
-          }
         }
       } catch (err) {
         // Quiet fail, fallback to Turkey default
       }
     };
     fetchLocation();
-  }, [focusedEarthquakeId]);
+  }, []);
 
   const [mapLocations, setMapLocations] = useState<MapLocation[]>([]);
   const [loadingLocations, setLoadingLocations] = useState(false);
@@ -113,23 +101,15 @@ export const MapScreen: React.FC = () => {
   });
 
   const focusedEarthquake = useMemo(
-    () => earthquakes?.find((eq) => eq.id === focusedEarthquakeId) ?? null,
-    [earthquakes, focusedEarthquakeId]
+    () => focusedEarthquakeParam || earthquakes?.find((eq) => eq.id === focusedEarthquakeId) || null,
+    [earthquakes, focusedEarthquakeId, focusedEarthquakeParam]
   );
 
   const focusedLocation = route.params?.focusedLocation;
 
+  // Sync route param focused objects to detail sheet states
   useEffect(() => {
-    if (focusedLocation && mapRef.current) {
-      mapRef.current.animateToRegion(
-        {
-          latitude: focusedLocation.latitude,
-          longitude: focusedLocation.longitude,
-          latitudeDelta: 0.02,
-          longitudeDelta: 0.02,
-        },
-        500
-      );
+    if (focusedLocation) {
       setSelectedLocation({
         id: 'focused_temp',
         type: 'shelter',
@@ -139,28 +119,114 @@ export const MapScreen: React.FC = () => {
         longitude: focusedLocation.longitude,
       });
       setSelectedEarthquake(null);
-    } else if (focusedEarthquake && mapRef.current) {
-      mapRef.current.animateToRegion(
-        {
-          latitude: focusedEarthquake.latitude,
-          longitude: focusedEarthquake.longitude,
-          latitudeDelta: FOCUSED_DELTA,
-          longitudeDelta: FOCUSED_DELTA,
-        },
-        400
-      );
+    } else if (focusedEarthquake) {
       setSelectedEarthquake(focusedEarthquake);
       setSelectedLocation(null);
     }
   }, [focusedEarthquake, focusedLocation]);
 
+  // Generate map HTML content
+  const mapHtml = useMemo(() => getLeafletMapTemplate(isDark ? 'dark' : 'light'), [isDark]);
+
+  // Send data to WebView when map is ready or when data changes
+  useEffect(() => {
+    if (webViewRef.current && isMapReady) {
+      let mergedEarthquakes = [...(earthquakes ?? [])];
+      if (focusedEarthquake && !mergedEarthquakes.some(eq => eq.id === focusedEarthquake.id)) {
+        mergedEarthquakes.push(focusedEarthquake);
+      }
+
+      const messageData = JSON.stringify({
+        type: 'UPDATE_DATA',
+        payload: {
+          earthquakes: mergedEarthquakes,
+          locations: mapLocations ?? [],
+          userLocation: userLocation,
+          focusedEarthquakeId: focusedEarthquakeId,
+          focusedLocation: focusedLocation,
+          toggles: {
+            showEarthquakes,
+            showShelters,
+            showHospitals,
+            showPharmacies
+          }
+        }
+      });
+
+      if (Platform.OS === 'web') {
+        const iframe = webViewRef.current as any;
+        iframe?.contentWindow?.postMessage(messageData, '*');
+      } else {
+        webViewRef.current.postMessage(messageData);
+      }
+    }
+  }, [
+    isMapReady,
+    earthquakes,
+    focusedEarthquake,
+    mapLocations,
+    userLocation,
+    focusedEarthquakeId,
+    focusedLocation,
+    showEarthquakes,
+    showShelters,
+    showHospitals,
+    showPharmacies
+  ]);
+
   const handleRecenterUser = () => {
-    if (userLocation && mapRef.current) {
-      mapRef.current.animateToRegion({
-        ...userLocation,
-        latitudeDelta: 0.03,
-        longitudeDelta: 0.03,
-      }, 500);
+    if (userLocation && webViewRef.current) {
+      const messageData = JSON.stringify({ type: 'RECENTER_USER' });
+      if (Platform.OS === 'web') {
+        (webViewRef.current as any).contentWindow?.postMessage(messageData, '*');
+      } else {
+        webViewRef.current.postMessage(messageData);
+      }
+    }
+  };
+
+  // Web event listener for postMessages from inside the iframe
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const handleWebMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('[Web Map Event]', data.type, data.payload ? JSON.stringify(data.payload).substring(0, 100) : '');
+        if (data.type === 'SELECT_EARTHQUAKE') {
+          setSelectedEarthquake(data.payload);
+          setSelectedLocation(null);
+        } else if (data.type === 'SELECT_LOCATION') {
+          setSelectedLocation(data.payload);
+          setSelectedEarthquake(null);
+        } else if (data.type === 'CONSOLE_ERROR') {
+          console.error('[Web Map JS Error]', data.payload);
+        }
+      } catch (e) {
+        // Ignored
+      }
+    };
+    window.addEventListener('message', handleWebMessage);
+    return () => window.removeEventListener('message', handleWebMessage);
+  }, []);
+
+  const handleMessage = (event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      console.log('[Native Map Event]', data.type, data.payload ? JSON.stringify(data.payload).substring(0, 100) : '');
+      if (data.type === 'SELECT_EARTHQUAKE') {
+        setSelectedEarthquake(data.payload);
+        setSelectedLocation(null);
+      } else if (data.type === 'SELECT_LOCATION') {
+        setSelectedLocation(data.payload);
+        setSelectedEarthquake(null);
+      } else if (data.type === 'MAP_READY') {
+        console.log('[Native Map] isMapReady = true');
+        setIsMapReady(true);
+      } else if (data.type === 'CONSOLE_ERROR') {
+        console.error('[Native Map JS Error]', data.payload);
+      }
+    } catch (err) {
+      console.error('Error handling message from WebView:', err);
     }
   };
 
@@ -174,72 +240,31 @@ export const MapScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <MapView
-        ref={mapRef}
-        style={StyleSheet.absoluteFill}
-        initialRegion={TURKEY_REGION}
-      >
-        {/* Render User Location custom marker to bypass buggy showsUserLocation in Fabric New Arch */}
-        {userLocation && (
-          <Marker
-            coordinate={userLocation}
-            title="Konumunuz"
-            zIndex={999}
-          >
-            <View style={styles.userLocationMarkerOuter}>
-              <View style={styles.userLocationMarkerInner} />
-            </View>
-          </Marker>
-        )}
-        {/* Render Earthquakes */}
-        {showEarthquakes &&
-          (earthquakes ?? []).map((earthquake) => (
-            <Marker
-              key={earthquake.id}
-              coordinate={{ latitude: earthquake.latitude, longitude: earthquake.longitude }}
-              onPress={() => {
-                setSelectedEarthquake(earthquake);
-                setSelectedLocation(null);
-              }}
-            >
-              <View
-                style={[
-                  styles.markerDot,
-                  { backgroundColor: getMagnitudeColor(earthquake.magnitude) },
-                ]}
-              />
-            </Marker>
-          ))}
-
-        {/* Render Shelters, Hospitals, Pharmacies */}
-        {mapLocations.map((loc) => {
-          if (loc.type === 'shelter' && !showShelters) return null;
-          if (loc.type === 'hospital' && !showHospitals) return null;
-          if (loc.type === 'pharmacy' && !showPharmacies) return null;
-
-          // Custom styling depending on location type
-          const details = {
-            shelter: { icon: 'shield-checkmark', color: '#2E7D32' },
-            hospital: { icon: 'medical', color: '#C62828' },
-            pharmacy: { icon: 'bandage', color: '#EF6C00' },
-          }[loc.type];
-
-          return (
-            <Marker
-              key={loc.id}
-              coordinate={{ latitude: loc.latitude, longitude: loc.longitude }}
-              onPress={() => {
-                setSelectedLocation(loc);
-                setSelectedEarthquake(null);
-              }}
-            >
-              <View style={[styles.customMarkerCircle, { backgroundColor: details.color }]}>
-                <Ionicons name={details.icon as any} size={14} color="#FFFFFF" />
-              </View>
-            </Marker>
-          );
-        })}
-      </MapView>
+      {Platform.OS === 'web' ? (
+        <iframe
+          ref={webViewRef as any}
+          srcDoc={mapHtml}
+          style={{
+            border: 'none',
+            width: '100%',
+            height: '100%',
+            position: 'absolute',
+          }}
+          onLoad={() => {
+            setIsMapReady(true);
+          }}
+        />
+      ) : (
+        <WebView
+          ref={webViewRef}
+          style={StyleSheet.absoluteFill}
+          originWhitelist={['*']}
+          source={{ html: mapHtml }}
+          onMessage={handleMessage}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+        />
+      )}
 
       {/* Floating Layer Controls */}
       <View style={[styles.floatingControlsContainer, { top: Math.max(insets.top, 12) }]}>
@@ -311,35 +336,8 @@ export const MapScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  markerDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  customMarkerCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 2,
-  },
   floatingControlsContainer: {
     position: 'absolute',
-    top: 50,
     left: 0,
     right: 0,
     zIndex: 10,
@@ -369,22 +367,6 @@ const styles = StyleSheet.create({
   layerChipText: {
     fontSize: 12,
     fontWeight: '600',
-  },
-  userLocationMarkerOuter: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#007AFF33',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  userLocationMarkerInner: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#007AFF',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
   },
   recenterButton: {
     position: 'absolute',
