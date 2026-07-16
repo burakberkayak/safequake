@@ -1,56 +1,109 @@
-# Welcome to your Expo app 👋
+# SafeQuake — Mimari İskelet
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Bu paket, PRD'nin tamamını değil; **temel mimariyi + Ana Sayfa (§7) özelliğini**
+uçtan uca, production kalitesinde içerir. PRD 26 bölümden oluşuyor (Firebase Auth,
+Google Maps, offline mod, aile güvende sistemi vb.) — hepsini tek seferde üretmek
+yerine sağlam bir temel + bir referans özellik üretip, üzerine katman katman
+inşa etmek daha sürdürülebilir.
 
-## Get started
+## Neden bu yapı?
 
-1. Install dependencies
+- **Feature-Based Folder Structure** (§24): Her özellik (`earthquake`, `map`,
+  `family`, ...) kendi `api/`, `components/`, `hooks/`, `screens/`, `types/`
+  alt klasörlerine sahip, birbirinden bağımsız geliştirilip commit'lenebilir.
+- **Repository Pattern + Dependency Injection**: `EarthquakeRepository`
+  arayüzü sayesinde ekranlar AFAD/Kandilli'ye değil soyutlamaya bağımlı.
+  `earthquakeRepositoryFactory.ts` hangi implementasyonun (Mock/AFAD)
+  kullanılacağına `EXPO_PUBLIC_USE_MOCK_DATA` env değişkeniyle karar verir.
+  Bu sayede **API anahtarları/gerçek endpoint'ler netleşmeden de** uygulama
+  gerçekçi mock veriyle uçtan uca çalışır ve test edilebilir.
+- **TypeScript strict mode** (`tsconfig.json`): `strict`, `noUncheckedIndexedAccess`
+  açık.
+- **Reusable UI state bileşenleri** (§21): `LoadingState`, `EmptyState`,
+  `ErrorState`, `SkeletonBlock` — `src/components/ScreenState.tsx` içinde,
+  her feature ekranı bunları tekrar tekrar kullanır.
+- **React Query**: Ağ state'i (loading/error/cache/otomatik yenileme) için;
+  Redux Toolkit ise §25'te istenen client-side global state (filtreler, auth
+  session, tema tercihi vb.) için ayrılacak — ikisini karıştırmamak önemli.
 
-   ```bash
-   npm install
-   ```
+## Şu an çalışan akış
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+App.tsx
+ └─ ThemeProvider (light/dark/system)
+     └─ QueryClientProvider
+         └─ HomeScreen
+             ├─ useLatestEarthquake() ─┐
+             ├─ useEarthquakes()      ─┴─> getEarthquakeRepository()
+             │                              └─ MockEarthquakeRepository (şimdilik)
+             ├─ LastEarthquakeCard
+             ├─ EarthquakeListItem (FlatList)
+             └─ Loading/Empty/Error state'leri
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Kurulum
 
-### Other setup steps
+```bash
+npm install
+npx expo start
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+Bu proje gerçekten `npm install` ile kurulup Metro ile bundle edilerek
+doğrulandı (1194 modül, hatasız).
 
-## Learn more
+### Önemli düzeltme: `src/app` → `src/bootstrap`
 
-To learn more about developing your project with Expo, look at the following resources:
+Önceki sürümde kök App bileşeni `src/app/App.tsx` yolundaydı. Expo CLI,
+proje içinde adı `app` olan bir klasörü otomatik olarak **Expo Router**
+kökü sanıp yanlış yapılandırma/route çözümlemesi yapıyordu — projenin
+"bozuk" görünmesinin sebebi buydu. Klasör `src/bootstrap` olarak yeniden
+adlandırıldı; kök dizindeki `App.tsx` (Expo'nun `expo/AppEntry.js`
+betiğinin aradığı standart giriş dosyası) sadece oraya yönlendiriyor:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```ts
+// App.tsx (proje kökü)
+export { default } from './src/bootstrap/App';
+```
 
-## Join the community
+Bu proje Expo Router **kullanmıyor** — PRD §25'te Expo Router "isteğe
+bağlı" olarak listelenmişti; navigasyon React Navigation (Bottom Tabs +
+tip güvenli param'lar) ile manuel kuruldu.
 
-Join our community of developers creating universal apps.
+Gerçek AFAD verisine geçmek için `.env` dosyasına:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```
+EXPO_PUBLIC_USE_MOCK_DATA=false
+EXPO_PUBLIC_AFAD_BASE_URL=<doğrulanmış AFAD endpoint>
+```
+
+## Sırada ne var? (önerilen sıra)
+
+1. ~~**Navigasyon iskeleti**~~ ✅ — Bottom Tabs (Ana Sayfa, Harita),
+   `navigation/types.ts` ile tip güvenli route param'ları.
+2. ~~**Harita sayfası (§8)**~~ ✅ — `react-native-maps`, büyüklüğe göre
+   renkli marker'lar, tıklanınca açılan Bottom Sheet (büyüklük/tarih/saat/
+   koordinat/derinlik). Ana Sayfa'dan bir depreme dokunulunca Harita'ya o
+   depreme odaklanmış şekilde geçiliyor.
+3. **Filtreleme (§9)** — `EarthquakeFilters` tipi ve util fonksiyonları
+   (`filterByTimeRange`, `filterByRadius`) zaten hazır; bir filtre bottom
+   sheet UI'ı + Redux slice (`filtersSlice`) eklenmesi yeterli.
+4. **Bildirimler (§10)** — `expo-notifications`; büyüklük/mesafe eşiği
+   kullanıcı ayarına göre local/push tetikleme.
+5. **Aile Güvende (§13) + Acil Durum Kartı (§14)** — Firebase Firestore +
+   AsyncStorage/SecureStore (offline erişim şart).
+6. **Deprem Çantası (§15) ve Eğitim (§16)** — tamamen local state/AsyncStorage,
+   backend gerektirmez, hızlı kazanılabilecek bölümler.
+7. **Offline mod (§17)** — react-query persist + AsyncStorage cache.
+
+## Bu adımda eklenenler
+
+- `navigation/types.ts`, `navigation/RootTabNavigator.tsx`
+- `components/BottomSheet.tsx` — harici kütüphanesiz, yeniden kullanılabilir
+  bottom sheet (ileride `@gorhom/bottom-sheet`'e geçilirse yalnızca bu dosya
+  değişir, tüketen ekranlar etkilenmez)
+- `features/map/screens/MapScreen.tsx`, `features/map/components/EarthquakeDetailSheetContent.tsx`
+- `App.tsx` artık `NavigationContainer` içeriyor ve SafeQuake `ThemeProvider`'ı
+  ile React Navigation temasını senkronize ediyor.
+
+Her adımı ayrı, bağımsız commit'lenebilir bir PR olarak ele almanı öneririm;
+sıradaki adım filtreleme (§9) — istersen onunla devam edelim.
