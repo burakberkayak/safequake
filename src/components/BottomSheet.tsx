@@ -6,6 +6,7 @@ import {
   Animated,
   Pressable,
   Dimensions,
+  PanResponder,
 } from 'react-native';
 import { useAppTheme } from '../theme/ThemeProvider';
 
@@ -16,24 +17,62 @@ interface BottomSheetProps {
 }
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
+const DISMISS_THRESHOLD = 70;
 
 /**
  * Harici bir bottom-sheet kütüphanesi eklemeden (bundle boyutunu artırmadan)
- * ihtiyacı karşılayan hafif bileşen. İleride @gorhom/bottom-sheet gibi bir
- * kütüphaneye geçilirse yalnızca bu dosya değişir — tüketen ekranlar
- * (`MapScreen` vb.) etkilenmez.
+ * sürükleyerek kapatma (swipe-to-dismiss) destekleyen hafif bileşen.
  */
 export const BottomSheet: React.FC<BottomSheetProps> = ({ visible, onClose, children }) => {
   const { colors } = useAppTheme();
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return gestureState.dy > 5;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          translateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > DISMISS_THRESHOLD || gestureState.vy > 0.5) {
+          Animated.timing(translateY, {
+            toValue: SCREEN_HEIGHT,
+            duration: 180,
+            useNativeDriver: true,
+          }).start(onClose);
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            damping: 22,
+            mass: 0.8,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
   useEffect(() => {
-    Animated.spring(translateY, {
-      toValue: visible ? 0 : SCREEN_HEIGHT,
-      useNativeDriver: true,
-      damping: 20,
-      mass: 0.8,
-    }).start();
+    if (visible) {
+      translateY.setValue(SCREEN_HEIGHT);
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        damping: 22,
+        mass: 0.8,
+      }).start();
+    } else {
+      Animated.timing(translateY, {
+        toValue: SCREEN_HEIGHT,
+        duration: 180,
+        useNativeDriver: true,
+      }).start();
+    }
   }, [visible, translateY]);
 
   return (
@@ -46,7 +85,11 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({ visible, onClose, chil
           ]}
           onStartShouldSetResponder={() => true}
         >
-          <View style={[styles.handle, { backgroundColor: colors.border }]} />
+          {/* Drag Handle Bar for Swipe-to-Dismiss */}
+          <View style={styles.handleArea} {...panResponder.panHandlers}>
+            <View style={[styles.handle, { backgroundColor: colors.onSurfaceVariant + '50' }]} />
+          </View>
+
           {children}
         </Animated.View>
       </Pressable>
@@ -58,19 +101,24 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
   sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 32,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+    maxHeight: SCREEN_HEIGHT * 0.85,
+  },
+  handleArea: {
+    width: '100%',
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 16,
+    width: 44,
+    height: 5,
+    borderRadius: 3,
   },
 });

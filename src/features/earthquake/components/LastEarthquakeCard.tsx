@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppTheme } from '../../../theme/ThemeProvider';
 import { Earthquake } from '../types/earthquake.types';
 import { MagnitudeBadge } from './MagnitudeBadge';
@@ -9,18 +9,23 @@ import { useTranslation } from '../../../hooks/useTranslation';
 
 interface LastEarthquakeCardProps {
   earthquake: Earthquake;
+  onPress?: () => void;
 }
 
 /**
  * PRD §7: Ana Sayfa - Son deprem (büyüklük, tarih, saat, derinlik, şehir)
  */
-export const LastEarthquakeCard: React.FC<LastEarthquakeCardProps> = ({ earthquake }) => {
+export const LastEarthquakeCard: React.FC<LastEarthquakeCardProps> = ({ earthquake, onPress }) => {
   const { colors } = useAppTheme();
   const { t } = useTranslation();
   const { date, time } = formatEarthquakeDateTime(earthquake.occurredAt);
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={onPress}
+      style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+    >
       <MagnitudeBadge magnitude={earthquake.magnitude} size="large" />
       <View style={styles.info}>
         <Text style={[styles.location, { color: colors.onSurface }]} numberOfLines={1}>
@@ -33,7 +38,7 @@ export const LastEarthquakeCard: React.FC<LastEarthquakeCardProps> = ({ earthqua
           {t('depth')}: {earthquake.depthKm.toFixed(1)} km
         </Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 

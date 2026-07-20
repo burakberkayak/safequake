@@ -17,18 +17,14 @@ export interface Earthquake {
 
 export type EarthquakeSource = 'AFAD' | 'KANDILLI';
 
-export type TimeRangeFilter = '24h' | '7d' | '30d';
-export type MagnitudeFilter = 2 | 3 | 4 | 5;
+export type MagnitudeFilter = 2 | 3 | 4 | 5 | 6 | 7;
 export type RadiusFilter = 50 | 100 | 250; // km
 
 export interface EarthquakeFilters {
-  timeRange: TimeRangeFilter;
   minMagnitude?: MagnitudeFilter;
   radiusKm?: RadiusFilter;
   originLatitude?: number;
   originLongitude?: number;
 }
 
-export const defaultEarthquakeFilters: EarthquakeFilters = {
-  timeRange: '24h',
-};
+export const defaultEarthquakeFilters: EarthquakeFilters = {};

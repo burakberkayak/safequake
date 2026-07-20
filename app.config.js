@@ -1,6 +1,7 @@
-// app.json yerine app.config.js kullanıyoruz: Google Maps API anahtarı gibi
-// hassas değerler artık kaynak koda gömülmüyor, process.env üzerinden
-// okunuyor (.env -> EXPO_PUBLIC_GOOGLE_MAPS_API_KEY).
+// app.json yerine app.config.js kullanıyoruz.
+// NOT: Google Maps tamamen kaldırıldı — harita artık MapLibre + OpenFreeMap
+// (ücretsiz, anahtarsız, sınırsız) ile çalışıyor. android.config.googleMaps
+// ve EXPO_PUBLIC_GOOGLE_MAPS_API_KEY artık gerekmiyor.
 module.exports = ({ config }) => ({
   ...config,
   expo: {
@@ -33,16 +34,6 @@ module.exports = ({ config }) => ({
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
       ],
-      config: {
-        googleMaps: {
-          // ÖNEMLİ: Eskiden bu dosyada (app.json) düz metin olarak duran
-          // gerçek bir Google Maps API anahtarı vardı. Artık .env'den
-          // okunuyor. O anahtarı Google Cloud Console'dan MUTLAKA
-          // döndür/rotate et ve yeni anahtara Android paket adı (SHA-1) /
-          // iOS bundle ID kısıtlaması ekle — bkz. README "Güvenlik" bölümü.
-          apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
-        },
-      },
     },
     web: {
       favicon: "./assets/favicon.png",
@@ -65,6 +56,7 @@ module.exports = ({ config }) => ({
       "expo-asset",
       "expo-font",
       "expo-secure-store",
+      "@maplibre/maplibre-react-native",
       [
         "expo-splash-screen",
         {

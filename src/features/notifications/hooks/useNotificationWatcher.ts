@@ -6,6 +6,7 @@ import { translations } from "../../../hooks/useTranslation";
 import { useAppSelector } from "../../../store/hooks";
 import { useLatestEarthquake } from "../../earthquake/hooks/useEarthquakes";
 import { distanceKm } from "../../earthquake/utils/earthquakeFilters";
+import { formatEarthquakeDateTime } from "../../earthquake/utils/formatEarthquake";
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -73,11 +74,13 @@ export const useNotificationWatcher = () => {
         const depthLabel = translations[lang].alertDepth;
         const dateLabel = translations[lang].alertDate;
 
+        const { date, time } = formatEarthquakeDateTime(latest.occurredAt);
+
         // Trigger local notification
         await Notifications.scheduleNotificationAsync({
           content: {
-            title: `${titleLabel}: ${latest.location} (${latest.magnitude})`,
-            body: `${magLabel}: ${latest.magnitude} | ${depthLabel}: ${latest.depthKm} km | ${dateLabel}: ${latest.occurredAt}`,
+            title: `🚨 ${titleLabel}: ${latest.location} (${latest.magnitude})`,
+            body: `⚡ ${magLabel}: ${latest.magnitude} | 📍 ${depthLabel}: ${latest.depthKm} km | 🕒 ${dateLabel}: ${time} (${date})`,
             sound: true,
             priority: Notifications.AndroidNotificationPriority.HIGH,
           },

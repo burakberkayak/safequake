@@ -5,22 +5,33 @@ import { EarthquakeFilters } from '../types/earthquake.types';
 const EARTHQUAKES_QUERY_KEY = 'earthquakes';
 
 /**
- * PRD §7: "Liste sürekli güncellenmeli" -> refetchInterval.
- * PRD §7: "Pull To Refresh olmalı" -> refetch fonksiyonu ekranda kullanılır.
+ * API Rate Limit (Maks 40 istek/dk) uyumluluğu için:
+ * - refetchInterval: 60_000 (1 dakikada bir otomatik güncelleme)
+ * - staleTime: 60_000 (60 saniye önbellek tazeliği)
+ * - refetchOnWindowFocus: false (Gereksiz odak içi isteklerini engeller)
  */
-export const useEarthquakes = (filters: EarthquakeFilters) => {
+export const useEarthquakes = (filters: EarthquakeFilters = {}) => {
   return useQuery({
     queryKey: [EARTHQUAKES_QUERY_KEY, filters],
     queryFn: () => getEarthquakeRepository().getEarthquakes(filters),
-    refetchInterval: 60_000, // 1 dakikada bir otomatik güncelle
-    staleTime: 30_000,
+    refetchInterval: 60_000,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 };
 
+/**
+ * Son depremi çekmek için ekstra HTTP isteği atmak yerine 
+ * useEarthquakes önbellek verisinden ilk elemanı alarak API istek sayısını %50 azaltır.
+ */
 export const useLatestEarthquake = () => {
-  return useQuery({
-    queryKey: [EARTHQUAKES_QUERY_KEY, 'latest'],
-    queryFn: () => getEarthquakeRepository().getLatestEarthquake(),
-    refetchInterval: 60_000,
-  });
+  const { data, isLoading, isError, refetch } = useEarthquakes({});
+  const latest = data && data.length > 0 ? data[0] : null;
+
+  return {
+    data: latest,
+    isLoading,
+    isError,
+    refetch,
+  };
 };

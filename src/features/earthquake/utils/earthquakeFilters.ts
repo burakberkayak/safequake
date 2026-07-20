@@ -1,19 +1,4 @@
-import { Earthquake, TimeRangeFilter } from '../types/earthquake.types';
-
-const RANGE_TO_MS: Record<TimeRangeFilter, number> = {
-  '24h': 24 * 60 * 60 * 1000,
-  '7d': 7 * 24 * 60 * 60 * 1000,
-  '30d': 30 * 24 * 60 * 60 * 1000,
-};
-
-export const filterByTimeRange = (
-  earthquakes: Earthquake[],
-  range: TimeRangeFilter,
-  now: Date = new Date()
-): Earthquake[] => {
-  const cutoff = now.getTime() - RANGE_TO_MS[range];
-  return earthquakes.filter((eq) => new Date(eq.occurredAt).getTime() >= cutoff);
-};
+import { Earthquake } from '../types/earthquake.types';
 
 /** Haversine formülü ile iki koordinat arası km cinsinden mesafe */
 export const distanceKm = (

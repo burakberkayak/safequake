@@ -12,10 +12,9 @@ import { useAppDispatch, useAppSelector } from '../../../store/hooks';
 import { setFilters, resetFilters } from '../../../store/slices/filterSlice';
 import { useAppTheme } from '../../../theme/ThemeProvider';
 import { BottomSheet } from '../../../components/BottomSheet';
-import { TimeRangeFilter, MagnitudeFilter, RadiusFilter, EarthquakeFilters } from '../types/earthquake.types';
+import { MagnitudeFilter, RadiusFilter, EarthquakeFilters } from '../types/earthquake.types';
 import * as Location from 'expo-location';
 import { useTranslation } from '../../../hooks/useTranslation';
-import { Ionicons } from '@expo/vector-icons';
 
 interface EarthquakeFilterSheetProps {
   visible: boolean;
@@ -25,10 +24,9 @@ interface EarthquakeFilterSheetProps {
 export const EarthquakeFilterSheet: React.FC<EarthquakeFilterSheetProps> = ({ visible, onClose }) => {
   const { colors } = useAppTheme();
   const dispatch = useAppDispatch();
-  const { t, language } = useTranslation();
+  const { language } = useTranslation();
   const currentFilters = useAppSelector((state) => state.filters.filters);
 
-  const [timeRange, setTimeRangeState] = useState<TimeRangeFilter>(currentFilters.timeRange);
   const [minMagnitude, setMinMagnitudeState] = useState<MagnitudeFilter | undefined>(currentFilters.minMagnitude);
   const [radiusKm, setRadiusKmState] = useState<RadiusFilter | undefined>(currentFilters.radiusKm);
   const [locating, setLocating] = useState(false);
@@ -66,7 +64,6 @@ export const EarthquakeFilterSheet: React.FC<EarthquakeFilterSheetProps> = ({ vi
     }
 
     const updatedFilters: EarthquakeFilters = {
-      timeRange,
       minMagnitude,
       radiusKm,
       originLatitude: lat,
@@ -79,7 +76,6 @@ export const EarthquakeFilterSheet: React.FC<EarthquakeFilterSheetProps> = ({ vi
   };
 
   const handleReset = () => {
-    setTimeRangeState('24h');
     setMinMagnitudeState(undefined);
     setRadiusKmState(undefined);
     dispatch(resetFilters());
@@ -96,43 +92,11 @@ export const EarthquakeFilterSheet: React.FC<EarthquakeFilterSheetProps> = ({ vi
           </TouchableOpacity>
         </View>
 
-        {/* Zaman Filtresi */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>{language === 'tr' ? 'Zaman Aralığı' : 'Time Range'}</Text>
-          <View style={styles.optionsRow}>
-            {(['24h', '7d', '30d'] as TimeRangeFilter[]).map((range) => {
-              const isActive = timeRange === range;
-              const label = range === '24h' 
-                ? (language === 'tr' ? '24 Saat' : '24 Hours') 
-                : range === '7d' 
-                  ? (language === 'tr' ? '7 Gün' : '7 Days') 
-                  : (language === 'tr' ? '30 Gün' : '30 Days');
-              return (
-                <TouchableOpacity
-                  key={range}
-                  style={[
-                    styles.optionButton,
-                    { 
-                      borderColor: isActive ? colors.primary : colors.border,
-                      backgroundColor: isActive ? colors.primary + '15' : colors.surface
-                    }
-                  ]}
-                  onPress={() => setTimeRangeState(range)}
-                >
-                  <Text style={[styles.optionText, { color: isActive ? colors.primary : colors.onSurface }]}>
-                    {label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
         {/* Büyüklük Filtresi */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.onSurfaceVariant }]}>{language === 'tr' ? 'Minimum Büyüklük' : 'Minimum Magnitude'}</Text>
           <View style={styles.optionsRow}>
-            {([undefined, 2, 3, 4, 5] as (MagnitudeFilter | undefined)[]).map((mag) => {
+            {([undefined, 2, 3, 4, 5, 6, 7] as (MagnitudeFilter | undefined)[]).map((mag) => {
               const isActive = minMagnitude === mag;
               const label = mag === undefined ? (language === 'tr' ? 'Hepsi' : 'All') : `${mag}+`;
               return (

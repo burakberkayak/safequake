@@ -37,7 +37,7 @@ export const RootTabNavigator: React.FC = () => {
       />
       <Tab.Screen
         name="Map"
-        component={MapNavigatorAdapter}
+        component={MapScreen}
         options={{
           title: t('tabMap'),
           tabBarIcon: ({ color, size }) => (
@@ -78,5 +78,3 @@ export const RootTabNavigator: React.FC = () => {
     </Tab.Navigator>
   );
 };
-
-const MapNavigatorAdapter: React.FC = () => <MapScreen />;

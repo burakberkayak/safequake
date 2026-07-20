@@ -9,6 +9,10 @@ import { useEarthquakes, useLatestEarthquake } from '../hooks/useEarthquakes';
 import { Earthquake } from '../types/earthquake.types';
 import { LastEarthquakeCard } from '../components/LastEarthquakeCard';
 import { EarthquakeListItem } from '../components/EarthquakeListItem';
+import { EarthquakeStatsBanner } from '../components/EarthquakeStatsBanner';
+import { EarthquakeStatsSheet } from '../components/EarthquakeStatsSheet';
+import { AlertZoneBanner } from '../../notifications/components/AlertZoneBanner';
+import { AlertZoneSheet } from '../../notifications/components/AlertZoneSheet';
 import { EmptyState, ErrorState, SkeletonBlock } from '../../../components/ScreenState';
 import { RootTabParamList } from '../../../navigation/types';
 import { EarthquakeFilterSheet } from '../components/EarthquakeFilterSheet';
@@ -18,6 +22,8 @@ import { Ionicons } from '@expo/vector-icons';
 /**
  * PRD §7 - Ana Sayfa
  * - Son deprem kartı
+ * - Kişisel Deprem Alarmı & Bölgesi
+ * - Bölgesel deprem hareketliliği & İstatistikler
  * - Deprem listesi (Redux filtreleri ile filtrelenmiş + Pull To Refresh)
  * - SafeAreaView entegrasyonu ile çentik/status bar uyumu
  */
@@ -27,6 +33,8 @@ export const HomeScreen: React.FC = () => {
   const { t, language } = useTranslation();
   const [refreshing, setRefreshing] = useState(false);
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
+  const [statsSheetVisible, setStatsSheetVisible] = useState(false);
+  const [alertZoneSheetVisible, setAlertZoneSheetVisible] = useState(false);
 
   // Redux store'dan filtreleri alıyoruz
   const filters = useAppSelector((state) => state.filters.filters);
@@ -34,11 +42,8 @@ export const HomeScreen: React.FC = () => {
   const handleSelectEarthquake = useCallback(
     (earthquake: Earthquake) => {
       navigation.navigate('Map', {
-        screen: 'MapHome',
-        params: { 
-          focusedEarthquakeId: earthquake.id,
-          focusedEarthquake: earthquake
-        },
+        focusedEarthquakeId: earthquake.id,
+        focusedEarthquake: earthquake,
       });
     },
     [navigation]
@@ -86,12 +91,6 @@ export const HomeScreen: React.FC = () => {
     return <ErrorState message={language === 'tr' ? 'Deprem verileri alınamadı.' : 'Could not fetch earthquake data.'} onRetry={refetch} />;
   }
 
-  const rangeLabels = {
-    '24h': t('last24h'),
-    '7d': t('last7d'),
-    '30d': t('last30d'),
-  };
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <FlatList
@@ -122,21 +121,43 @@ export const HomeScreen: React.FC = () => {
             {isLatestLoading ? (
               <SkeletonBlock height={96} />
             ) : latest ? (
-              <LastEarthquakeCard earthquake={latest} />
+              <LastEarthquakeCard earthquake={latest} onPress={() => handleSelectEarthquake(latest)} />
             ) : null}
+
+            {/* Kişisel Deprem Alarmı & Bölgesi Kartı */}
+            <AlertZoneBanner onOpenAlertSheet={() => setAlertZoneSheetVisible(true)} />
+
+            {/* Bölgesel Deprem Hareketliliği ve İstatistik Özeti */}
+            {earthquakes && earthquakes.length > 0 && (
+              <EarthquakeStatsBanner
+                earthquakes={earthquakes}
+                onOpenStats={() => setStatsSheetVisible(true)}
+              />
+            )}
             
-            {/* Filtre Başlığı ve Butonu */}
+            {/* Filtre Başlığı ve Butonları */}
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-                {`${rangeLabels[filters.timeRange]} (${earthquakes && earthquakes.length >= 100 ? '100+' : earthquakes?.length ?? 0})`}
+                {language === 'tr' ? `Son Depremler (${earthquakes?.length ?? 0})` : `Recent Earthquakes (${earthquakes?.length ?? 0})`}
               </Text>
-              <TouchableOpacity 
-                style={[styles.filterButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                onPress={() => setFilterSheetVisible(true)}
-              >
-                <Ionicons name="funnel-outline" size={16} color={colors.primary} />
-                <Text style={[styles.filterButtonText, { color: colors.primary }]}>{t('filter')}</Text>
-              </TouchableOpacity>
+
+              <View style={styles.headerActionRow}>
+                <TouchableOpacity
+                  style={[styles.filterButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                  onPress={() => setStatsSheetVisible(true)}
+                >
+                  <Ionicons name="stats-chart-outline" size={15} color={colors.primary} />
+                  <Text style={[styles.filterButtonText, { color: colors.primary }]}>Analiz</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.filterButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                  onPress={() => setFilterSheetVisible(true)}
+                >
+                  <Ionicons name="funnel-outline" size={15} color={colors.primary} />
+                  <Text style={[styles.filterButtonText, { color: colors.primary }]}>{t('filter')}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Aktif Filtre Chip'leri */}
@@ -181,6 +202,17 @@ export const HomeScreen: React.FC = () => {
         visible={filterSheetVisible} 
         onClose={() => setFilterSheetVisible(false)} 
       />
+
+      <EarthquakeStatsSheet
+        visible={statsSheetVisible}
+        onClose={() => setStatsSheetVisible(false)}
+        earthquakes={earthquakes ?? []}
+      />
+
+      <AlertZoneSheet
+        visible={alertZoneSheetVisible}
+        onClose={() => setAlertZoneSheetVisible(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -202,6 +234,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 8,
+  },
+  headerActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   sectionTitle: {
     fontSize: 16,

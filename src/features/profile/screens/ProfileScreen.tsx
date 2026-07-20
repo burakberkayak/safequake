@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -23,6 +23,8 @@ import {
 import { useAppTheme } from '../../../theme/ThemeProvider';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { useTranslation } from '../../../hooks/useTranslation';
+import { AlertZoneBanner } from '../../notifications/components/AlertZoneBanner';
+import { AlertZoneSheet } from '../../notifications/components/AlertZoneSheet';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
@@ -34,6 +36,7 @@ export const ProfileScreen: React.FC = () => {
   const { t } = useTranslation();
   
   const settings = useAppSelector((state) => state.settings);
+  const [alertSheetVisible, setAlertSheetVisible] = useState(false);
 
   const handleThemeChange = (newMode: AppThemeMode) => {
     dispatch(setThemeMode(newMode));
@@ -92,6 +95,9 @@ export const ProfileScreen: React.FC = () => {
             <Text style={[styles.userEmail, { color: colors.onSurfaceVariant }]}>{email}</Text>
           </View>
         </View>
+
+        {/* Personal Alert Zone Summary Card */}
+        <AlertZoneBanner onOpenAlertSheet={() => setAlertSheetVisible(true)} />
 
         {/* Settings Section */}
         <View style={styles.section}>
@@ -184,7 +190,7 @@ export const ProfileScreen: React.FC = () => {
             <View style={[styles.settingsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Text style={[styles.settingsCardLabel, { color: colors.onSurfaceVariant }]}>{t('minMagNotify')}</Text>
               <View style={styles.themeRow}>
-                {([undefined, 3, 4, 5] as (number | undefined)[]).map((mag) => {
+                {([undefined, 3, 4, 5, 6, 7] as (number | undefined)[]).map((mag) => {
                   const isActive = settings.minMagnitudeNotify === mag;
                   const label = mag === undefined ? t('notifyAll') : `${mag}+`;
                   return (
@@ -245,6 +251,11 @@ export const ProfileScreen: React.FC = () => {
           <Text style={[styles.logoutText, { color: colors.red }]}>{t('logout')}</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <AlertZoneSheet
+        visible={alertSheetVisible}
+        onClose={() => setAlertSheetVisible(false)}
+      />
     </SafeAreaView>
   );
 };

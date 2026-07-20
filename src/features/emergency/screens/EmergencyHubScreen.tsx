@@ -9,9 +9,16 @@ import { Ionicons } from '@expo/vector-icons';
 export const EmergencyHubScreen: React.FC = () => {
   const { colors } = useAppTheme();
   const navigation = useNavigation<any>();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
 
   const menuItems = [
+    {
+      title: language === 'tr' ? 'Çevrimdışı İlk Yardım Rehberi' : 'Offline First Aid Guide',
+      description: language === 'tr' ? 'Enkaz altı, kanama, kalp masajı, tıkanma ve kırık adımları (%100 İnternetsiz)' : 'Under rubble, CPR, bleeding, choking steps (100% Offline)',
+      icon: 'heart-circle',
+      color: '#E53935',
+      target: 'FirstAid',
+    },
     {
       title: t('cardTitle'),
       description: t('cardDesc'),

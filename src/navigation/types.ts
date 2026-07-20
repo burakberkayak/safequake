@@ -1,14 +1,15 @@
 import { NavigatorScreenParams } from '@react-navigation/native';
+import { Earthquake } from '../features/earthquake/types/earthquake.types';
 
 /**
  * PRD §7-8: Ana Sayfa'dan bir depreme dokunulduğunda Harita'ya, o depremin
  * koordinatına odaklanmış ve detay bottom sheet'i açık şekilde geçilebilmesi
- * için `focusedEarthquakeId` parametresi taşınıyor.
+ * için `focusedEarthquakeId` ve `focusedEarthquake` parametresi taşınıyor.
  */
 export type MapTabParamList = {
   MapHome: { 
     focusedEarthquakeId?: string;
-    focusedEarthquake?: any;
+    focusedEarthquake?: Earthquake;
     focusedLocation?: {
       latitude: number;
       longitude: number;
@@ -21,7 +22,10 @@ import { EmergencyStackParamList } from '../features/emergency/navigation/Emerge
 
 export type RootTabParamList = {
   Home: undefined;
-  Map: NavigatorScreenParams<MapTabParamList>;
+  Map: {
+    focusedEarthquakeId?: string;
+    focusedEarthquake?: Earthquake;
+  } | undefined;
   Emergency: NavigatorScreenParams<EmergencyStackParamList>;
   Family: undefined;
   Profile: undefined;

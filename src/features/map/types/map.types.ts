@@ -1,6 +1,8 @@
+export type MapLocationType = 'shelter' | 'hospital' | 'pharmacy';
+
 export interface MapLocation {
   id: string;
-  type: 'shelter' | 'hospital' | 'pharmacy';
+  type: MapLocationType;
   name: string;
   address: string;
   latitude: number;

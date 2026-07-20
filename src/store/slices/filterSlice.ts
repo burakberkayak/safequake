@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { EarthquakeFilters, TimeRangeFilter, MagnitudeFilter, RadiusFilter } from '../../features/earthquake/types/earthquake.types';
+import { EarthquakeFilters, MagnitudeFilter, RadiusFilter } from '../../features/earthquake/types/earthquake.types';
 
 interface FilterState {
   filters: EarthquakeFilters;
@@ -7,7 +7,6 @@ interface FilterState {
 
 const initialState: FilterState = {
   filters: {
-    timeRange: '24h',
     minMagnitude: undefined,
     radiusKm: undefined,
     originLatitude: undefined,
@@ -22,9 +21,6 @@ const filterSlice = createSlice({
     setFilters: (state, action: PayloadAction<EarthquakeFilters>) => {
       state.filters = action.payload;
     },
-    setTimeRange: (state, action: PayloadAction<TimeRangeFilter>) => {
-      state.filters.timeRange = action.payload;
-    },
     setMinMagnitude: (state, action: PayloadAction<MagnitudeFilter | undefined>) => {
       state.filters.minMagnitude = action.payload;
     },
@@ -35,7 +31,6 @@ const filterSlice = createSlice({
     },
     resetFilters: (state) => {
       state.filters = {
-        timeRange: '24h',
         minMagnitude: undefined,
         radiusKm: undefined,
         originLatitude: undefined,
@@ -45,5 +40,5 @@ const filterSlice = createSlice({
   },
 });
 
-export const { setFilters, setTimeRange, setMinMagnitude, setRadius, resetFilters } = filterSlice.actions;
+export const { setFilters, setMinMagnitude, setRadius, resetFilters } = filterSlice.actions;
 export default filterSlice.reducer;
