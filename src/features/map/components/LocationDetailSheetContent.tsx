@@ -1,134 +1,194 @@
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Linking, Alert, Platform } from 'react-native';
-import { MapLocation } from '../types/map.types';
+import { StyleSheet, View, Text, TouchableOpacity, Linking, Platform } from 'react-native';
 import { useAppTheme } from '../../../theme/ThemeProvider';
+import { NearbyPlace } from '../services/overpassService';
+import { distanceKm } from '../../earthquake/utils/earthquakeFilters';
+import { useTranslation } from '../../../hooks/useTranslation';
 import { Ionicons } from '@expo/vector-icons';
 
 interface LocationDetailSheetContentProps {
-  location: MapLocation;
+  place: NearbyPlace;
+  userLocation?: { latitude: number; longitude: number } | null;
+  onDrawRoute?: (place: NearbyPlace) => void;
 }
 
-export const LocationDetailSheetContent: React.FC<LocationDetailSheetContentProps> = ({ location }) => {
+export const LocationDetailSheetContent: React.FC<LocationDetailSheetContentProps> = ({
+  place,
+  userLocation,
+  onDrawRoute,
+}) => {
   const { colors } = useAppTheme();
+  const { language } = useTranslation();
 
-  const handleNavigate = () => {
-    const { latitude, longitude, name } = location;
-    const label = encodeURIComponent(name);
+  const categoryConfigs: Record<
+    NearbyPlace['category'],
+    { titleTR: string; titleEN: string; icon: string; color: string }
+  > = {
+    hospital: { titleTR: 'Hastane', titleEN: 'Hospital', icon: 'medical', color: '#E53935' },
+    pharmacy: { titleTR: 'Eczane', titleEN: 'Pharmacy', icon: 'medkit', color: '#2E7D32' },
+    fire_station: { titleTR: 'İtfaiye', titleEN: 'Fire Station', icon: 'flame', color: '#E65100' },
+    police: { titleTR: 'Polis Merkezi', titleEN: 'Police Station', icon: 'shield', color: '#1565C0' },
+    shelter: { titleTR: 'Toplanma & Barınma', titleEN: 'Assembly / Shelter', icon: 'location', color: '#00838F' },
+  };
+
+  const config = categoryConfigs[place.category];
+
+  const distance = userLocation
+    ? distanceKm(userLocation.latitude, userLocation.longitude, place.latitude, place.longitude)
+    : null;
+
+  const handleGetDirections = () => {
+    const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
+    const latLng = `${place.latitude},${place.longitude}`;
+    const label = encodeURIComponent(place.name);
     const url = Platform.select({
-      ios: `maps://app?daddr=${latitude},${longitude}&q=${label}`,
-      android: `google.navigation:q=${latitude},${longitude}&label=${label}`,
-      default: `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`,
-    }) ?? `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
+      ios: `${scheme}${label}@${latLng}`,
+      android: `${scheme}${latLng}(${label})`,
+    });
 
-    Linking.openURL(url).catch(() => {
-      Alert.alert('Hata', 'Navigasyon uygulaması açılamadı.');
+    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${place.latitude},${place.longitude}`;
+
+    Linking.openURL(url || googleMapsUrl).catch(() => {
+      Linking.openURL(googleMapsUrl);
     });
   };
 
-  const handleCall = () => {
-    if (location.phone) {
-      Linking.openURL(`tel:${location.phone}`).catch(() => {
-        Alert.alert('Hata', 'Telefon araması başlatılamadı.');
-      });
-    }
-  };
-
-  const typeDetails = {
-    shelter: { icon: 'shield-checkmark', color: '#2E7D32', label: 'Toplanma Alanı' },
-    hospital: { icon: 'medical', color: '#C62828', label: 'Hastane' },
-    pharmacy: { icon: 'bandage', color: '#EF6C00', label: 'Nöbetçi Eczane' },
-  }[location.type];
-
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={[styles.iconBox, { backgroundColor: typeDetails.color + '15' }]}>
-          <Ionicons name={typeDetails.icon as any} size={28} color={typeDetails.color} />
+      {/* Category Header Badge */}
+      <View style={styles.headerRow}>
+        <View style={[styles.iconBox, { backgroundColor: config.color + '15' }]}>
+          <Ionicons name={config.icon as any} size={24} color={config.color} />
         </View>
-        <View style={styles.headerText}>
-          <Text style={[styles.typeLabel, { color: typeDetails.color }]}>{typeDetails.label}</Text>
-          <Text style={[styles.name, { color: colors.onBackground }]}>{location.name}</Text>
+        <View style={styles.headerTextGroup}>
+          <Text style={[styles.categoryTitle, { color: config.color }]}>
+            {language === 'tr' ? config.titleTR : config.titleEN}
+          </Text>
+          {distance !== null && (
+            <Text style={[styles.distanceText, { color: colors.onSurfaceVariant }]}>
+              📍 {distance < 1 ? `${Math.round(distance * 1000)} m` : `${distance.toFixed(1)} km`}{' '}
+              {language === 'tr' ? 'uzaklıkta' : 'away'}
+            </Text>
+          )}
         </View>
       </View>
 
-      <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
-        <Ionicons name="location-outline" size={20} color={colors.onSurfaceVariant} />
-        <Text style={[styles.addressText, { color: colors.onSurface }]}>{location.address}</Text>
-      </View>
+      {/* Place Name */}
+      <Text style={[styles.placeName, { color: colors.onSurface }]}>{place.name}</Text>
 
-      {location.phone && (
-        <TouchableOpacity style={[styles.infoRow, { borderBottomColor: colors.border }]} onPress={handleCall}>
-          <Ionicons name="call-outline" size={20} color={colors.primary} />
-          <Text style={[styles.phoneText, { color: colors.primary }]}>{location.phone}</Text>
-        </TouchableOpacity>
+      {/* Address if present */}
+      {place.address && (
+        <View style={styles.addressRow}>
+          <Ionicons name="map-outline" size={16} color={colors.onSurfaceVariant} />
+          <Text style={[styles.addressText, { color: colors.onSurfaceVariant }]}>
+            {place.address}
+          </Text>
+        </View>
       )}
 
-      <TouchableOpacity style={[styles.navButton, { backgroundColor: colors.primary }]} onPress={handleNavigate}>
-        <Ionicons name="navigate-outline" size={20} color={colors.onPrimary} />
-        <Text style={[styles.navButtonText, { color: colors.onPrimary }]}>Yol Tarifi Al</Text>
-      </TouchableOpacity>
+      {/* Action Buttons */}
+      <View style={styles.actionRow}>
+        {onDrawRoute && (
+          <TouchableOpacity
+            style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+            onPress={() => onDrawRoute(place)}
+          >
+            <Ionicons name="git-network-outline" size={18} color="#FFFFFF" />
+            <Text style={styles.buttonText}>
+              {language === 'tr' ? 'Haritada Rota Çiz' : 'Draw Route'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity
+          style={[styles.secondaryButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={handleGetDirections}
+        >
+          <Ionicons name="navigate-outline" size={18} color={colors.onSurface} />
+          <Text style={[styles.secondaryButtonText, { color: colors.onSurface }]}>
+            {language === 'tr' ? 'Dış Harita' : 'External Maps'}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    paddingBottom: 32,
-    gap: 16,
+    padding: 16,
+    gap: 12,
   },
-  header: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
   iconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerText: {
+  headerTextGroup: {
     flex: 1,
+    gap: 2,
   },
-  typeLabel: {
+  categoryTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  distanceText: {
     fontSize: 12,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
+    fontWeight: '600',
   },
-  name: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginTop: 2,
+  placeName: {
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 24,
   },
-  infoRow: {
+  addressRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
+    alignItems: 'center',
+    gap: 6,
   },
   addressText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
     flex: 1,
   },
-  phoneText: {
-    fontSize: 14,
-    fontWeight: 'bold',
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 6,
   },
-  navButton: {
-    height: 48,
-    borderRadius: 8,
+  primaryButton: {
+    flex: 1,
+    height: 46,
+    borderRadius: 14,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
-    marginTop: 8,
   },
-  navButtonText: {
-    fontSize: 15,
-    fontWeight: 'bold',
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  secondaryButton: {
+    height: 46,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+  },
+  secondaryButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

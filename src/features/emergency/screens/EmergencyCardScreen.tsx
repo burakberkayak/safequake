@@ -10,7 +10,7 @@ import {
   Linking
 } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../../../store/hooks';
-import { updateEmergencyCard, EmergencyContact } from '../../../store/slices/emergencySlice';
+import { updateEmergencyCard, addEmergencyContact, removeFamilyMember } from '../../../store/slices/emergencySlice';
 import { useAppTheme } from '../../../theme/ThemeProvider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from '../../../hooks/useTranslation';
@@ -20,14 +20,15 @@ export const EmergencyCardScreen: React.FC = () => {
   const { colors } = useAppTheme();
   const dispatch = useAppDispatch();
   const { t, language } = useTranslation();
+
   const card = useAppSelector((state) => state.emergency.card);
+  const familyMembers = useAppSelector((state) => state.emergency.familyMembers);
 
   const [isEditing, setIsEditing] = useState(false);
   const [bloodType, setBloodType] = useState(card.bloodType);
   const [allergies, setAllergies] = useState(card.allergies);
   const [chronicDiseases, setChronicDiseases] = useState(card.chronicDiseases);
   const [medications, setMedications] = useState(card.medications);
-  const [contacts, setContacts] = useState<EmergencyContact[]>(card.contacts);
 
   // Form states for adding new contact
   const [newContactName, setNewContactName] = useState('');
@@ -40,7 +41,6 @@ export const EmergencyCardScreen: React.FC = () => {
       allergies,
       chronicDiseases,
       medications,
-      contacts
     }));
     setIsEditing(false);
     Alert.alert(
@@ -59,26 +59,25 @@ export const EmergencyCardScreen: React.FC = () => {
   };
 
   const handleAddContact = () => {
-    if (!newContactName || !newContactPhone || !newContactRelation) {
+    if (!newContactName || !newContactPhone) {
       Alert.alert(
         language === 'tr' ? 'Hata' : 'Error',
-        language === 'tr' ? 'Lütfen tüm kişi bilgilerini doldurun.' : 'Please fill in all contact information.'
+        language === 'tr' ? 'Lütfen ad soyad ve telefon numarasını doldurun.' : 'Please enter name and phone number.'
       );
       return;
     }
-    const newContact: EmergencyContact = {
+    dispatch(addEmergencyContact({
       name: newContactName,
       phone: newContactPhone,
-      relation: newContactRelation
-    };
-    setContacts([...contacts, newContact]);
+      relation: newContactRelation || 'Diğer',
+    }));
     setNewContactName('');
     setNewContactPhone('');
     setNewContactRelation('');
   };
 
-  const handleRemoveContact = (index: number) => {
-    setContacts(contacts.filter((_, i) => i !== index));
+  const handleRemoveContact = (id: string) => {
+    dispatch(removeFamilyMember(id));
   };
 
   return (
@@ -150,13 +149,13 @@ export const EmergencyCardScreen: React.FC = () => {
             <View style={styles.contactsSection}>
               <Text style={[styles.sectionTitle, { color: colors.onBackground }]}>{t('contacts')}</Text>
               
-              {contacts.map((contact, index) => (
-                <View key={index} style={[styles.contactEditRow, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+              {familyMembers.map((contact) => (
+                <View key={contact.id} style={[styles.contactEditRow, { borderColor: colors.border, backgroundColor: colors.surface }]}>
                   <View style={styles.contactInfo}>
                     <Text style={[styles.contactName, { color: colors.onSurface }]}>{contact.name} ({contact.relation})</Text>
                     <Text style={{ color: colors.onSurfaceVariant }}>{contact.phone}</Text>
                   </View>
-                  <TouchableOpacity onPress={() => handleRemoveContact(index)} style={styles.deleteButton}>
+                  <TouchableOpacity onPress={() => handleRemoveContact(contact.id)} style={styles.deleteButton}>
                     <Ionicons name="trash-outline" size={20} color={colors.red} />
                   </TouchableOpacity>
                 </View>
@@ -195,50 +194,54 @@ export const EmergencyCardScreen: React.FC = () => {
 
             <View style={styles.actionButtons}>
               <TouchableOpacity style={[styles.saveButton, { backgroundColor: colors.primary }]} onPress={handleSave}>
-                <Text style={{ color: colors.onPrimary, fontWeight: 'bold' }}>{t('save')}</Text>
+                <Ionicons name="checkmark-circle-outline" size={20} color={colors.onPrimary} />
+                <Text style={styles.saveButtonText}>{t('save')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.cancelButton, { borderColor: colors.border }]} onPress={() => setIsEditing(false)}>
-                <Text style={{ color: colors.onSurfaceVariant }}>{language === 'tr' ? 'Vazgeç' : 'Cancel'}</Text>
+                <Text style={[styles.cancelButtonText, { color: colors.onSurfaceVariant }]}>{language === 'tr' ? 'İptal' : 'Cancel'}</Text>
               </TouchableOpacity>
             </View>
           </View>
         ) : (
           // VIEW MODE
-          <View style={styles.viewCard}>
-            {/* Medical Red Card Header */}
-            <View style={[styles.medicalCardHeader, { backgroundColor: colors.red }]}>
-              <View>
-                <Text style={styles.cardHeaderTitle}>{language === 'tr' ? 'TIBBİ BİLGİ KARTI' : 'MEDICAL INFORMATION CARD'}</Text>
-                <Text style={styles.cardHeaderSubtitle}>{language === 'tr' ? 'ACİL DURUM İÇİN' : 'FOR EMERGENCY'}</Text>
+          <View style={styles.card}>
+            <View style={styles.infoRow}>
+              <View style={styles.infoIconWrapper}>
+                <Ionicons name="water" size={24} color={colors.red} />
               </View>
-              <View style={styles.bloodCircle}>
-                <Text style={[styles.bloodText, { color: colors.red }]}>{card.bloodType || '?'}</Text>
+              <View style={styles.infoTextContainer}>
+                <Text style={[styles.cardInfoLabel, { color: colors.onSurfaceVariant }]}>{t('bloodType')}</Text>
+                <Text style={[styles.cardInfoValue, styles.bloodTypeValue, { color: colors.red }]}>{card.bloodType || (language === 'tr' ? 'Belirtilmedi' : 'Not specified')}</Text>
               </View>
             </View>
 
-            <View style={[styles.cardBody, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <View style={styles.cardInfoRow}>
-                <Ionicons name="medical-outline" size={20} color={colors.red} />
-                <View style={styles.cardInfoText}>
-                  <Text style={[styles.cardInfoLabel, { color: colors.onSurfaceVariant }]}>{t('allergies')}</Text>
-                  <Text style={[styles.cardInfoValue, { color: colors.onSurface }]}>{card.allergies || (language === 'tr' ? 'Belirtilmedi' : 'Not specified')}</Text>
-                </View>
+            <View style={styles.infoRow}>
+              <View style={styles.infoIconWrapper}>
+                <Ionicons name="warning" size={24} color={colors.orange} />
               </View>
-
-              <View style={styles.cardInfoRow}>
-                <Ionicons name="pulse" size={20} color={colors.red} />
-                <View style={styles.cardInfoText}>
-                  <Text style={[styles.cardInfoLabel, { color: colors.onSurfaceVariant }]}>{t('chronicDiseases')}</Text>
-                  <Text style={[styles.cardInfoValue, { color: colors.onSurface }]}>{card.chronicDiseases || (language === 'tr' ? 'Belirtilmedi' : 'Not specified')}</Text>
-                </View>
+              <View style={styles.infoTextContainer}>
+                <Text style={[styles.cardInfoLabel, { color: colors.onSurfaceVariant }]}>{t('allergies')}</Text>
+                <Text style={[styles.cardInfoValue, { color: colors.onSurface }]}>{card.allergies || (language === 'tr' ? 'Yok / Belirtilmedi' : 'None specified')}</Text>
               </View>
+            </View>
 
-              <View style={styles.cardInfoRow}>
-                <Ionicons name="flask-outline" size={20} color={colors.red} />
-                <View style={styles.cardInfoText}>
-                  <Text style={[styles.cardInfoLabel, { color: colors.onSurfaceVariant }]}>{t('medications')}</Text>
-                  <Text style={[styles.cardInfoValue, { color: colors.onSurface }]}>{card.medications || (language === 'tr' ? 'Belirtilmedi' : 'Not specified')}</Text>
-                </View>
+            <View style={styles.infoRow}>
+              <View style={styles.infoIconWrapper}>
+                <Ionicons name="pulse" size={24} color={colors.primary} />
+              </View>
+              <View style={styles.infoTextContainer}>
+                <Text style={[styles.cardInfoLabel, { color: colors.onSurfaceVariant }]}>{t('chronicDiseases')}</Text>
+                <Text style={[styles.cardInfoValue, { color: colors.onSurface }]}>{card.chronicDiseases || (language === 'tr' ? 'Yok / Belirtilmedi' : 'None specified')}</Text>
+              </View>
+            </View>
+
+            <View style={styles.infoRow}>
+              <View style={styles.infoIconWrapper}>
+                <Ionicons name="bandage" size={24} color={colors.green} />
+              </View>
+              <View style={styles.infoTextContainer}>
+                <Text style={[styles.cardInfoLabel, { color: colors.onSurfaceVariant }]}>{t('medications')}</Text>
+                <Text style={[styles.cardInfoValue, { color: colors.onSurface }]}>{card.medications || (language === 'tr' ? 'Belirtilmedi' : 'Not specified')}</Text>
               </View>
             </View>
 
@@ -246,11 +249,11 @@ export const EmergencyCardScreen: React.FC = () => {
             <View style={styles.contactsSection}>
               <Text style={[styles.sectionTitle, { color: colors.onBackground }]}>{t('contacts')}</Text>
               
-              {card.contacts.length === 0 ? (
+              {familyMembers.length === 0 ? (
                 <Text style={{ color: colors.onSurfaceVariant, fontStyle: 'italic' }}>{language === 'tr' ? 'Kişi eklenmemiş.' : 'No contacts added.'}</Text>
               ) : (
-                card.contacts.map((contact, index) => (
-                  <View key={index} style={[styles.contactCardRow, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+                familyMembers.map((contact) => (
+                  <View key={contact.id} style={[styles.contactCardRow, { borderColor: colors.border, backgroundColor: colors.surface }]}>
                     <View style={styles.contactInfo}>
                       <Text style={[styles.contactName, { color: colors.onSurface }]}>{contact.name} ({contact.relation})</Text>
                       <Text style={{ color: colors.onSurfaceVariant }}>{contact.phone}</Text>
@@ -275,133 +278,55 @@ export const EmergencyCardScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   content: {
-    padding: 20,
-    paddingBottom: 40,
+    padding: 16,
+    paddingBottom: 32,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
   },
   description: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 24,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 20,
   },
-  form: {
+  card: {
     gap: 16,
   },
-  inputGroup: {
-    gap: 6,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    fontSize: 15,
-  },
-  textArea: {
-    height: 80,
-    textAlignVertical: 'top',
-    paddingTop: 12,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 16,
-  },
-  saveButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cancelButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: 8,
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  viewCard: {
-    gap: 20,
-  },
-  medicalCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-  },
-  cardHeaderTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    letterSpacing: 1,
-  },
-  cardHeaderSubtitle: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    opacity: 0.8,
-    marginTop: 2,
-  },
-  bloodCircle: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  bloodText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  cardBody: {
-    borderWidth: 1,
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-    padding: 16,
-    gap: 16,
-    marginTop: -20, // Connect with header
-  },
-  cardInfoRow: {
+  infoRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: 14,
   },
-  cardInfoText: {
+  infoIconWrapper: {
+    marginTop: 2,
+  },
+  infoTextContainer: {
     flex: 1,
+    gap: 2,
   },
   cardInfoLabel: {
     fontSize: 12,
     fontWeight: '600',
-    marginBottom: 2,
   },
   cardInfoValue: {
     fontSize: 15,
-    lineHeight: 20,
+    fontWeight: '500',
+  },
+  bloodTypeValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
   },
   contactsSection: {
-    marginTop: 8,
-    gap: 12,
+    marginTop: 12,
+    gap: 10,
   },
   sectionTitle: {
     fontSize: 16,
@@ -423,57 +348,107 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    marginBottom: 8,
   },
   contactInfo: {
     flex: 1,
+    gap: 2,
   },
   contactName: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 2,
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   callButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },
   deleteButton: {
-    padding: 8,
+    padding: 6,
   },
   addContactCard: {
-    borderWidth: 1,
+    padding: 12,
     borderRadius: 8,
-    padding: 16,
-    gap: 12,
+    borderWidth: 1,
+    gap: 8,
     marginTop: 8,
   },
   addContactTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
   },
   addContactButton: {
-    height: 40,
-    borderRadius: 8,
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    gap: 6,
+    height: 38,
+    borderRadius: 6,
+    marginTop: 4,
   },
   editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     height: 48,
     borderRadius: 8,
     borderWidth: 1,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
+    marginTop: 12,
   },
   editButtonText: {
     fontSize: 15,
     fontWeight: 'bold',
+  },
+  form: {
+    gap: 16,
+  },
+  inputGroup: {
+    gap: 6,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  input: {
+    height: 44,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 14,
+  },
+  textArea: {
+    height: 80,
+    paddingTop: 10,
+    textAlignVertical: 'top',
+  },
+  actionButtons: {
+    gap: 10,
+    marginTop: 12,
+  },
+  saveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 48,
+    borderRadius: 8,
+  },
+  saveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  cancelButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

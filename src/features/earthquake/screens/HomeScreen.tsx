@@ -16,16 +16,17 @@ import { AlertZoneSheet } from '../../notifications/components/AlertZoneSheet';
 import { EmptyState, ErrorState, SkeletonBlock } from '../../../components/ScreenState';
 import { RootTabParamList } from '../../../navigation/types';
 import { EarthquakeFilterSheet } from '../components/EarthquakeFilterSheet';
+import { EmergencyStatusModal } from '../../emergency/components/EmergencyStatusModal';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { Ionicons } from '@expo/vector-icons';
 
 /**
  * PRD §7 - Ana Sayfa
  * - Son deprem kartı
+ * - Güvendeyim / Acil Mesaj (SMS & WhatsApp 0 TL)
  * - Kişisel Deprem Alarmı & Bölgesi
  * - Bölgesel deprem hareketliliği & İstatistikler
- * - Deprem listesi (Redux filtreleri ile filtrelenmiş + Pull To Refresh)
- * - SafeAreaView entegrasyonu ile çentik/status bar uyumu
+ * - Deprem listesi
  */
 export const HomeScreen: React.FC = () => {
   const { colors } = useAppTheme();
@@ -35,6 +36,7 @@ export const HomeScreen: React.FC = () => {
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
   const [statsSheetVisible, setStatsSheetVisible] = useState(false);
   const [alertZoneSheetVisible, setAlertZoneSheetVisible] = useState(false);
+  const [emergencyModalVisible, setEmergencyModalVisible] = useState(false);
 
   // Redux store'dan filtreleri alıyoruz
   const filters = useAppSelector((state) => state.filters.filters);
@@ -147,7 +149,9 @@ export const HomeScreen: React.FC = () => {
                   onPress={() => setStatsSheetVisible(true)}
                 >
                   <Ionicons name="stats-chart-outline" size={15} color={colors.primary} />
-                  <Text style={[styles.filterButtonText, { color: colors.primary }]}>Analiz</Text>
+                  <Text style={[styles.filterButtonText, { color: colors.primary }]}>
+                    {language === 'tr' ? 'Analiz' : 'Analytics'}
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity 
@@ -182,36 +186,44 @@ export const HomeScreen: React.FC = () => {
           </View>
         }
         ListEmptyComponent={
-          isLoading ? (
-            <View style={styles.skeletonList}>
-              <SkeletonBlock height={64} />
-              <SkeletonBlock height={64} />
-              <SkeletonBlock height={64} />
-            </View>
-          ) : (
-            <EmptyState 
-              title={t('noEarthquakes')} 
-              description={t('noEarthquakesDesc')} 
+          !isLoading ? (
+            <EmptyState
+              title={language === 'tr' ? 'Deprem Bulunamadı' : 'No Earthquakes Found'}
+              description={language === 'tr' ? 'Seçtiğiniz kriterlere uygun deprem kaydı bulunamadı.' : 'No earthquakes match your filter criteria.'}
             />
+          ) : (
+            <View style={styles.skeletonContainer}>
+              <SkeletonBlock height={80} />
+              <SkeletonBlock height={80} />
+              <SkeletonBlock height={80} />
+            </View>
           )
         }
-        contentContainerStyle={styles.listContent}
       />
 
-      <EarthquakeFilterSheet 
-        visible={filterSheetVisible} 
-        onClose={() => setFilterSheetVisible(false)} 
+      {/* Deprem Filtre Sheet'i */}
+      <EarthquakeFilterSheet
+        visible={filterSheetVisible}
+        onClose={() => setFilterSheetVisible(false)}
       />
 
+      {/* Deprem İstatistik Sheet'i */}
       <EarthquakeStatsSheet
         visible={statsSheetVisible}
         onClose={() => setStatsSheetVisible(false)}
         earthquakes={earthquakes ?? []}
       />
 
+      {/* Deprem Alarm Bölgesi Sheet'i */}
       <AlertZoneSheet
         visible={alertZoneSheetVisible}
         onClose={() => setAlertZoneSheetVisible(false)}
+      />
+
+      {/* Tek Tıkla SMS & WhatsApp Güvendeyim Paneli */}
+      <EmergencyStatusModal
+        visible={emergencyModalVisible}
+        onClose={() => setEmergencyModalVisible(false)}
       />
     </SafeAreaView>
   );
@@ -221,35 +233,82 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  listContent: {
-    padding: 16,
-    flexGrow: 1,
-  },
   header: {
-    gap: 16,
-    marginBottom: 8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    gap: 12,
+  },
+  safetyBroadCastBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  safetyBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  safetyIconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  safetyTextGroup: {
+    flex: 1,
+    gap: 2,
+  },
+  safetyBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  safetyBannerSubText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  quickBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+  },
+  quickBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 4,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
   },
   headerActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
   filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    paddingHorizontal: 12,
     borderRadius: 16,
     borderWidth: 1,
   },
@@ -259,14 +318,11 @@ const styles = StyleSheet.create({
   },
   chipsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
-    marginTop: -8,
-    marginBottom: 4,
   },
   chip: {
-    paddingVertical: 4,
     paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 12,
     borderWidth: 1,
   },
@@ -274,7 +330,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  skeletonList: {
+  skeletonContainer: {
+    paddingHorizontal: 16,
     gap: 12,
+    marginTop: 12,
   },
 });

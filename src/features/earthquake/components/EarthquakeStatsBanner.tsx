@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { useAppTheme } from '../../../theme/ThemeProvider';
 import { Earthquake } from '../types/earthquake.types';
 import { calculateEarthquakeStats } from '../utils/earthquakeStats';
+import { useTranslation } from '../../../hooks/useTranslation';
 import { Ionicons } from '@expo/vector-icons';
 
 interface EarthquakeStatsBannerProps {
@@ -14,9 +15,9 @@ interface EarthquakeStatsBannerProps {
 export const EarthquakeStatsBanner: React.FC<EarthquakeStatsBannerProps> = ({
   earthquakes,
   onOpenStats,
-  timeRangeLabel = 'Son 100 Deprem',
 }) => {
   const { colors } = useAppTheme();
+  const { language } = useTranslation();
   const stats = calculateEarthquakeStats(earthquakes);
 
   if (stats.totalCount === 0) return null;
@@ -32,10 +33,14 @@ export const EarthquakeStatsBanner: React.FC<EarthquakeStatsBannerProps> = ({
           <View style={[styles.iconCircle, { backgroundColor: colors.primary + '15' }]}>
             <Ionicons name="stats-chart" size={16} color={colors.primary} />
           </View>
-          <Text style={[styles.bannerTitle, { color: colors.onSurface }]}>Son 100 Deprem İstatistikleri</Text>
+          <Text style={[styles.bannerTitle, { color: colors.onSurface }]}>
+            {language === 'tr' ? 'Son 100 Deprem İstatistikleri' : 'Last 100 Earthquakes Analytics'}
+          </Text>
         </View>
         <View style={styles.moreRow}>
-          <Text style={[styles.moreText, { color: colors.primary }]}>Analiz</Text>
+          <Text style={[styles.moreText, { color: colors.primary }]}>
+            {language === 'tr' ? 'Analiz' : 'Analytics'}
+          </Text>
           <Ionicons name="chevron-forward" size={14} color={colors.primary} />
         </View>
       </View>
@@ -43,14 +48,18 @@ export const EarthquakeStatsBanner: React.FC<EarthquakeStatsBannerProps> = ({
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
           <Text style={[styles.statValue, { color: colors.onSurface }]}>{stats.totalCount}</Text>
-          <Text style={[styles.statLabel, { color: colors.onSurfaceVariant }]}>{timeRangeLabel}</Text>
+          <Text style={[styles.statLabel, { color: colors.onSurfaceVariant }]}>
+            {language === 'tr' ? 'Son 100 Deprem' : 'Last 100 Events'}
+          </Text>
         </View>
 
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
         <View style={styles.statItem}>
           <Text style={[styles.statValue, { color: colors.onSurface }]}>{stats.maxMagnitude.toFixed(1)}</Text>
-          <Text style={[styles.statLabel, { color: colors.onSurfaceVariant }]}>Maks. Büyüklük</Text>
+          <Text style={[styles.statLabel, { color: colors.onSurfaceVariant }]}>
+            {language === 'tr' ? 'Maks. Büyüklük' : 'Max Magnitude'}
+          </Text>
         </View>
 
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -59,7 +68,9 @@ export const EarthquakeStatsBanner: React.FC<EarthquakeStatsBannerProps> = ({
           <Text style={[styles.statValue, { color: colors.onSurface }]} numberOfLines={1}>
             {stats.topRegions[0]?.regionName ?? '-'}
           </Text>
-          <Text style={[styles.statLabel, { color: colors.onSurfaceVariant }]}>En Çok Sarsılan</Text>
+          <Text style={[styles.statLabel, { color: colors.onSurfaceVariant }]}>
+            {language === 'tr' ? 'En Çok Sarsılan' : 'Most Active'}
+          </Text>
         </View>
       </View>
     </TouchableOpacity>

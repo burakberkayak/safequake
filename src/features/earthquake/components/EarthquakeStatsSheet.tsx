@@ -5,6 +5,7 @@ import { useAppTheme } from '../../../theme/ThemeProvider';
 import { Earthquake } from '../types/earthquake.types';
 import { calculateEarthquakeStats } from '../utils/earthquakeStats';
 import { MagnitudeBadge } from './MagnitudeBadge';
+import { useTranslation } from '../../../hooks/useTranslation';
 import { Ionicons } from '@expo/vector-icons';
 
 interface EarthquakeStatsSheetProps {
@@ -18,9 +19,9 @@ export const EarthquakeStatsSheet: React.FC<EarthquakeStatsSheetProps> = ({
   visible,
   onClose,
   earthquakes,
-  timeRangeLabel = 'Son 100 Deprem',
 }) => {
   const { colors } = useAppTheme();
+  const { language } = useTranslation();
   const stats = calculateEarthquakeStats(earthquakes);
 
   return (
@@ -30,10 +31,14 @@ export const EarthquakeStatsSheet: React.FC<EarthquakeStatsSheetProps> = ({
         <View style={styles.header}>
           <View style={styles.titleRow}>
             <Ionicons name="analytics" size={22} color={colors.primary} />
-            <Text style={[styles.title, { color: colors.onSurface }]}>Deprem İstatistikleri</Text>
+            <Text style={[styles.title, { color: colors.onSurface }]}>
+              {language === 'tr' ? 'Deprem İstatistikleri' : 'Earthquake Analytics'}
+            </Text>
           </View>
           <Text style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
-            {timeRangeLabel} içindeki {stats.totalCount} sarsıntının özeti
+            {language === 'tr'
+              ? `Son 100 Deprem içindeki ${stats.totalCount} sarsıntının özeti`
+              : `Summary of ${stats.totalCount} events in the last 100 earthquakes`}
           </Text>
         </View>
 
@@ -42,25 +47,33 @@ export const EarthquakeStatsSheet: React.FC<EarthquakeStatsSheetProps> = ({
           <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Ionicons name="pulse" size={20} color={colors.primary} />
             <Text style={[styles.kpiValue, { color: colors.onSurface }]}>{stats.totalCount}</Text>
-            <Text style={[styles.kpiLabel, { color: colors.onSurfaceVariant }]}>Toplam Deprem</Text>
+            <Text style={[styles.kpiLabel, { color: colors.onSurfaceVariant }]}>
+              {language === 'tr' ? 'Toplam Deprem' : 'Total Events'}
+            </Text>
           </View>
 
           <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Ionicons name="flash-outline" size={20} color="#FF9800" />
             <Text style={[styles.kpiValue, { color: colors.onSurface }]}>{stats.maxMagnitude.toFixed(1)}</Text>
-            <Text style={[styles.kpiLabel, { color: colors.onSurfaceVariant }]}>Maks. Büyüklük</Text>
+            <Text style={[styles.kpiLabel, { color: colors.onSurfaceVariant }]}>
+              {language === 'tr' ? 'Maks. Büyüklük' : 'Max Magnitude'}
+            </Text>
           </View>
 
           <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Ionicons name="speedometer-outline" size={20} color="#2196F3" />
             <Text style={[styles.kpiValue, { color: colors.onSurface }]}>{stats.avgMagnitude.toFixed(1)}</Text>
-            <Text style={[styles.kpiLabel, { color: colors.onSurfaceVariant }]}>Ort. Büyüklük</Text>
+            <Text style={[styles.kpiLabel, { color: colors.onSurfaceVariant }]}>
+              {language === 'tr' ? 'Ort. Büyüklük' : 'Avg Magnitude'}
+            </Text>
           </View>
 
           <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Ionicons name="layers-outline" size={20} color="#9C27B0" />
             <Text style={[styles.kpiValue, { color: colors.onSurface }]}>{stats.avgDepthKm.toFixed(1)} km</Text>
-            <Text style={[styles.kpiLabel, { color: colors.onSurfaceVariant }]}>Ort. Derinlik</Text>
+            <Text style={[styles.kpiLabel, { color: colors.onSurfaceVariant }]}>
+              {language === 'tr' ? 'Ort. Derinlik' : 'Avg Depth'}
+            </Text>
           </View>
         </View>
 
@@ -69,7 +82,9 @@ export const EarthquakeStatsSheet: React.FC<EarthquakeStatsSheetProps> = ({
           <View style={[styles.maxEqCard, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
             <View style={styles.maxEqHeader}>
               <Ionicons name="alert-circle" size={18} color={colors.primary} />
-              <Text style={[styles.maxEqTitle, { color: colors.primary }]}>En Şiddetli Deprem</Text>
+              <Text style={[styles.maxEqTitle, { color: colors.primary }]}>
+                {language === 'tr' ? 'En Şiddetli Deprem' : 'Most Severe Earthquake'}
+              </Text>
             </View>
             <View style={styles.maxEqBody}>
               <MagnitudeBadge magnitude={stats.maxMagnitudeEarthquake.magnitude} size="small" />
@@ -78,7 +93,7 @@ export const EarthquakeStatsSheet: React.FC<EarthquakeStatsSheetProps> = ({
                   {stats.maxMagnitudeEarthquake.location}
                 </Text>
                 <Text style={[styles.maxEqMeta, { color: colors.onSurfaceVariant }]}>
-                  Derinlik: {stats.maxMagnitudeEarthquake.depthKm.toFixed(1)} km
+                  {language === 'tr' ? 'Derinlik' : 'Depth'}: {stats.maxMagnitudeEarthquake.depthKm.toFixed(1)} km
                 </Text>
               </View>
             </View>
@@ -87,12 +102,16 @@ export const EarthquakeStatsSheet: React.FC<EarthquakeStatsSheetProps> = ({
 
         {/* Magnitude Distribution */}
         <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>Büyüklük Dağılımı</Text>
+          <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
+            {language === 'tr' ? 'Büyüklük Dağılımı' : 'Magnitude Breakdown'}
+          </Text>
 
           {/* Minor (< 3.0) */}
           <View style={styles.barItem}>
             <View style={styles.barLabelRow}>
-              <Text style={[styles.barLabel, { color: colors.onSurface }]}>Hafif (&lt; 3.0 ML)</Text>
+              <Text style={[styles.barLabel, { color: colors.onSurface }]}>
+                {language === 'tr' ? 'Hafif (< 3.0 ML)' : 'Minor (< 3.0 ML)'}
+              </Text>
               <Text style={[styles.barCount, { color: colors.onSurfaceVariant }]}>
                 {stats.magnitudeRanges.minor.count} ({stats.magnitudeRanges.minor.percentage}%)
               </Text>
@@ -110,7 +129,9 @@ export const EarthquakeStatsSheet: React.FC<EarthquakeStatsSheetProps> = ({
           {/* Moderate (3.0 - 4.9) */}
           <View style={styles.barItem}>
             <View style={styles.barLabelRow}>
-              <Text style={[styles.barLabel, { color: colors.onSurface }]}>Orta (3.0 - 4.9 ML)</Text>
+              <Text style={[styles.barLabel, { color: colors.onSurface }]}>
+                {language === 'tr' ? 'Orta (3.0 - 4.9 ML)' : 'Moderate (3.0 - 4.9 ML)'}
+              </Text>
               <Text style={[styles.barCount, { color: colors.onSurfaceVariant }]}>
                 {stats.magnitudeRanges.moderate.count} ({stats.magnitudeRanges.moderate.percentage}%)
               </Text>
@@ -128,7 +149,9 @@ export const EarthquakeStatsSheet: React.FC<EarthquakeStatsSheetProps> = ({
           {/* Major (>= 5.0) */}
           <View style={styles.barItem}>
             <View style={styles.barLabelRow}>
-              <Text style={[styles.barLabel, { color: colors.onSurface }]}>Şiddetli (&ge; 5.0 ML)</Text>
+              <Text style={[styles.barLabel, { color: colors.onSurface }]}>
+                {language === 'tr' ? 'Şiddetli (≥ 5.0 ML)' : 'Major (≥ 5.0 ML)'}
+              </Text>
               <Text style={[styles.barCount, { color: colors.onSurfaceVariant }]}>
                 {stats.magnitudeRanges.major.count} ({stats.magnitudeRanges.major.percentage}%)
               </Text>
@@ -147,7 +170,9 @@ export const EarthquakeStatsSheet: React.FC<EarthquakeStatsSheetProps> = ({
         {/* Top Active Regions */}
         {stats.topRegions.length > 0 && (
           <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>En Hareketli Bölgeler / Şehirler</Text>
+            <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
+              {language === 'tr' ? 'En Hareketli Bölgeler / Şehirler' : 'Top Active Regions / Cities'}
+            </Text>
             {stats.topRegions.map((region, index) => (
               <View key={region.regionName} style={styles.regionRow}>
                 <View style={styles.regionRank}>
@@ -156,7 +181,7 @@ export const EarthquakeStatsSheet: React.FC<EarthquakeStatsSheetProps> = ({
                 <View style={styles.regionInfo}>
                   <Text style={[styles.regionName, { color: colors.onSurface }]}>{region.regionName}</Text>
                   <Text style={[styles.regionSub, { color: colors.onSurfaceVariant }]}>
-                    {region.count} sarsıntı kaydedildi
+                    {language === 'tr' ? `${region.count} sarsıntı kaydedildi` : `${region.count} events recorded`}
                   </Text>
                 </View>
                 <MagnitudeBadge magnitude={region.maxMag} size="small" />
