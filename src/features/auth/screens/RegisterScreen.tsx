@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -18,24 +18,33 @@ import { Ionicons } from '@expo/vector-icons';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useTranslation } from '../../../hooks/useTranslation';
 
-const registerSchema = z.object({
-  name: z.string().min(1, 'Ad soyad gereklidir.'),
-  email: z.string().min(1, 'E-posta adresi gereklidir.').email('Geçersiz e-posta adresi.'),
-  password: z.string().min(6, 'Şifre en az 6 karakter olmalıdır.'),
-  confirmPassword: z.string().min(6, 'Şifre tekrarı gereklidir.'),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: 'Şifreler eşleşmiyor.',
-  path: ['confirmPassword'],
-});
-
-type RegisterSchemaType = z.infer<typeof registerSchema>;
+type RegisterSchemaType = {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+};
 
 export const RegisterScreen: React.FC = () => {
   const { colors } = useAppTheme();
   const navigation = useNavigation<any>();
   const { registerWithEmail, loading, error } = useAuth();
+  const { language } = useTranslation();
   const [showPassword, setShowPassword] = useState(false);
+
+  const registerSchema = useMemo(() => z.object({
+    name: z.string().min(1, language === 'tr' ? 'Ad soyad gereklidir.' : 'Full name is required.'),
+    email: z.string()
+      .min(1, language === 'tr' ? 'E-posta adresi gereklidir.' : 'Email address is required.')
+      .email(language === 'tr' ? 'Geçersiz e-posta adresi.' : 'Invalid email address.'),
+    password: z.string().min(6, language === 'tr' ? 'Şifre en az 6 karakter olmalıdır.' : 'Password must be at least 6 characters.'),
+    confirmPassword: z.string().min(6, language === 'tr' ? 'Şifre tekrarı gereklidir.' : 'Confirm password is required.'),
+  }).refine((data) => data.password === data.confirmPassword, {
+    message: language === 'tr' ? 'Şifreler eşleşmiyor.' : 'Passwords do not match.',
+    path: ['confirmPassword'],
+  }), [language]);
 
   const { control, handleSubmit, formState: { errors } } = useForm<RegisterSchemaType>({
     resolver: zodResolver(registerSchema),
@@ -55,6 +64,24 @@ export const RegisterScreen: React.FC = () => {
     }
   };
 
+  const getFriendlyError = (errStr: string) => {
+    if (!errStr) return '';
+    const cleanErr = errStr.toLowerCase();
+    if (cleanErr.includes('auth/email-already-in-use')) {
+      return language === 'tr' ? 'Bu e-posta adresi zaten kullanımda.' : 'This email address is already in use.';
+    }
+    if (cleanErr.includes('auth/invalid-email')) {
+      return language === 'tr' ? 'Geçersiz e-posta adresi.' : 'Invalid email address.';
+    }
+    if (errStr.includes('Firebase configuration is missing')) {
+      return language === 'tr' ? 'Firebase yapılandırması eksik. Lütfen .env dosyasını kontrol edin.' : 'Firebase configuration is missing. Please check your .env file.';
+    }
+    if (errStr === 'Kayıt olunamadı.') {
+      return language === 'tr' ? 'Kayıt olunamadı.' : 'Failed to register.';
+    }
+    return errStr;
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       <KeyboardAvoidingView
@@ -66,9 +93,13 @@ export const RegisterScreen: React.FC = () => {
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
               <Ionicons name="arrow-back" size={24} color={colors.onBackground} />
             </TouchableOpacity>
-            <Text style={[styles.title, { color: colors.onBackground }]}>Kayıt Ol</Text>
+            <Text style={[styles.title, { color: colors.onBackground }]}>
+              {language === 'tr' ? 'Kayıt Ol' : 'Register'}
+            </Text>
             <Text style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
-              SafeQuake ailesine katılın ve yakınlarınızın güvenliğini sağlayın
+              {language === 'tr' 
+                ? 'SafeQuake ailesine katılın ve yakınlarınızın güvenliğini sağlayın' 
+                : 'Join the SafeQuake family and ensure the safety of your relatives'}
             </Text>
           </View>
 
@@ -76,12 +107,14 @@ export const RegisterScreen: React.FC = () => {
             {error && (
               <View style={[styles.errorContainer, { backgroundColor: colors.redContainer }]}>
                 <Ionicons name="alert-circle" size={20} color={colors.red} />
-                <Text style={[styles.errorText, { color: colors.red }]}>{error}</Text>
+                <Text style={[styles.errorText, { color: colors.red }]}>{getFriendlyError(error)}</Text>
               </View>
             )}
 
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>Ad Soyad</Text>
+              <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>
+                {language === 'tr' ? 'Ad Soyad' : 'Full Name'}
+              </Text>
               <Controller
                 control={control}
                 name="name"
@@ -90,7 +123,7 @@ export const RegisterScreen: React.FC = () => {
                     <Ionicons name="person-outline" size={20} color={colors.onSurfaceVariant} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: colors.onSurface }]}
-                      placeholder="ör. Ahmet Yılmaz"
+                      placeholder={language === 'tr' ? "ör. Ahmet Yılmaz" : "e.g. John Doe"}
                       placeholderTextColor={colors.onSurfaceVariant + '70'}
                       onBlur={onBlur}
                       onChangeText={onChange}
@@ -108,7 +141,9 @@ export const RegisterScreen: React.FC = () => {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>E-Posta</Text>
+              <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>
+                {language === 'tr' ? 'E-Posta' : 'Email'}
+              </Text>
               <Controller
                 control={control}
                 name="email"
@@ -117,7 +152,7 @@ export const RegisterScreen: React.FC = () => {
                     <Ionicons name="mail-outline" size={20} color={colors.onSurfaceVariant} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: colors.onSurface }]}
-                      placeholder="ör. ahmet@mail.com"
+                      placeholder={language === 'tr' ? "ör. ahmet@mail.com" : "e.g. john@mail.com"}
                       placeholderTextColor={colors.onSurfaceVariant + '70'}
                       onBlur={onBlur}
                       onChangeText={onChange}
@@ -136,7 +171,9 @@ export const RegisterScreen: React.FC = () => {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>Şifre</Text>
+              <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>
+                {language === 'tr' ? 'Şifre' : 'Password'}
+              </Text>
               <Controller
                 control={control}
                 name="password"
@@ -171,7 +208,9 @@ export const RegisterScreen: React.FC = () => {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>Şifre Tekrar</Text>
+              <Text style={[styles.label, { color: colors.onSurfaceVariant }]}>
+                {language === 'tr' ? 'Şifre Tekrar' : 'Confirm Password'}
+              </Text>
               <Controller
                 control={control}
                 name="confirmPassword"
@@ -206,14 +245,20 @@ export const RegisterScreen: React.FC = () => {
               {loading ? (
                 <ActivityIndicator color={colors.onPrimary} />
               ) : (
-                <Text style={[styles.buttonText, { color: colors.onPrimary }]}>Kayıt Ol</Text>
+                <Text style={[styles.buttonText, { color: colors.onPrimary }]}>
+                  {language === 'tr' ? 'Kayıt Ol' : 'Register'}
+                </Text>
               )}
             </TouchableOpacity>
 
             <View style={styles.footer}>
-              <Text style={{ color: colors.onSurfaceVariant }}>Zaten hesabınız var mı? </Text>
+              <Text style={{ color: colors.onSurfaceVariant }}>
+                {language === 'tr' ? 'Zaten hesabınız var mı? ' : 'Already have an account? '}
+              </Text>
               <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                <Text style={[styles.link, { color: colors.primary }]}>Giriş Yapın</Text>
+                <Text style={[styles.link, { color: colors.primary }]}>
+                  {language === 'tr' ? 'Giriş Yapın' : 'Login'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

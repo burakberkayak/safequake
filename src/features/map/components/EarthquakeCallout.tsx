@@ -20,7 +20,7 @@ export const EarthquakeCallout: React.FC<EarthquakeCalloutProps> = ({
 }) => {
   const { colors } = useAppTheme();
   const { language } = useTranslation();
-  const { time } = formatEarthquakeDateTime(earthquake.occurredAt);
+  const { time } = formatEarthquakeDateTime(earthquake.occurredAt, language);
 
   return (
     <View style={[styles.calloutCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>

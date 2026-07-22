@@ -17,8 +17,8 @@ interface LastEarthquakeCardProps {
  */
 export const LastEarthquakeCard: React.FC<LastEarthquakeCardProps> = ({ earthquake, onPress }) => {
   const { colors } = useAppTheme();
-  const { t } = useTranslation();
-  const { date, time } = formatEarthquakeDateTime(earthquake.occurredAt);
+  const { t, language } = useTranslation();
+  const { date, time } = formatEarthquakeDateTime(earthquake.occurredAt, language);
 
   return (
     <TouchableOpacity

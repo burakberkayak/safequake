@@ -1,5 +1,4 @@
 import { MapLocation, MapLocationType } from '../types/map.types';
-
 /**
  * Tamamen ücretsiz, API anahtarı gerektirmeyen konum verisi: OpenStreetMap
  * Overpass API. Google Places'in yerini alıyor.
@@ -18,7 +17,7 @@ import { MapLocation, MapLocationType } from '../types/map.types';
  * kendi Overpass instance'ını veya https://overpass.kumi.systems gibi
  * alternatif public sunucuları kullanabilirsin.
  */
-const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+const OVERPASS_URL = process.env.EXPO_PUBLIC_OVERPASS_URL ?? 'https://overpass-api.de/api/interpreter';
 
 interface OverpassElement {
   type: 'node' | 'way' | 'relation';

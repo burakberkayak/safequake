@@ -15,8 +15,8 @@ export const getOsrmRoute = async (
   end: { latitude: number; longitude: number },
 ): Promise<RouteResult | null> => {
   const endpoints = [
-    `https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson`,
-    `https://routing.openstreetmap.de/routed-car/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson`,
+    `https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson&continue_straight=false`,
+    `https://routing.openstreetmap.de/routed-car/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson&continue_straight=false`,
   ];
 
   for (const url of endpoints) {
@@ -27,7 +27,7 @@ export const getOsrmRoute = async (
       if (
         route &&
         route.geometry?.coordinates &&
-        route.geometry.coordinates.length > 0
+        route.geometry.coordinates.length >= 2
       ) {
         return {
           coordinates: route.geometry.coordinates,

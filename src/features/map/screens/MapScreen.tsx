@@ -1,62 +1,49 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
-import { Map, Camera, Marker as MLMarker, GeoJSONSource, Layer, type CameraRef } from '@maplibre/maplibre-react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, Alert, TouchableOpacity, ActivityIndicator, Text } from 'react-native';
+import { Map, Camera, Marker as MLMarker, GeoJSONSource, Layer } from '@maplibre/maplibre-react-native';
 import { useRoute, RouteProp, useIsFocused, useNavigation, NavigationProp } from '@react-navigation/native';
-import { useAppTheme } from '../../../theme/ThemeProvider';
 import { useAppSelector } from '../../../store/hooks';
 import { useEarthquakes } from '../../earthquake/hooks/useEarthquakes';
 import { Earthquake } from '../../earthquake/types/earthquake.types';
-import { distanceKm } from '../../earthquake/utils/earthquakeFilters';
 import { BottomSheet } from '../../../components/BottomSheet';
 import { EarthquakeDetailSheetContent } from '../components/EarthquakeDetailSheetContent';
 import { LocationDetailSheetContent } from '../components/LocationDetailSheetContent';
 import { EarthquakeCallout } from '../components/EarthquakeCallout';
 import { PulsingMarker } from '../components/PulsingMarker';
-import { fetchNearbyEmergencyPlaces, NearbyCategory, NearbyPlace } from '../services/overpassService';
-import { getOsrmRoute } from '../services/osrmService';
+import { MapStylePicker } from '../components/MapStylePicker';
+import { CategoryChipBar } from '../components/CategoryChipBar';
+import { RouteStatusOverlay } from '../components/RouteStatusOverlay';
+import { useMapCamera } from '../hooks/useMapCamera';
+import { useLiveLocation } from '../hooks/useLiveLocation';
+import { useNearbyPlaces } from '../hooks/useNearbyPlaces';
+import { useMapRoute } from '../hooks/useMapRoute';
+import { getMapStyleUrl, MapStyleType } from '../constants/mapStyles';
+import { NearbyPlace } from '../services/overpassService';
 import { ErrorState, LoadingState } from '../../../components/ScreenState';
 import { RootTabParamList } from '../../../navigation/types';
 import { useTranslation } from '../../../hooks/useTranslation';
-import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
-
-type MapStyleType = 'bright' | 'liberty' | 'dark' | 'satellite';
-
-const BRIGHT_MAP_URL = 'https://tiles.openfreemap.org/styles/bright';
-const LIBERTY_MAP_URL = 'https://tiles.openfreemap.org/styles/liberty';
-const DARK_MAP_URL = 'https://tiles.openfreemap.org/styles/dark';
-
-const SATELLITE_STYLE_JSON = JSON.stringify({
-  version: 8,
-  sources: {
-    'esri-satellite': {
-      type: 'raster',
-      tiles: [
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      ],
-      tileSize: 256,
-    },
-  },
-  layers: [
-    {
-      id: 'esri-satellite-layer',
-      type: 'raster',
-      source: 'esri-satellite',
-      minzoom: 0,
-      maxzoom: 19,
-    },
-  ],
-});
+import { useAppTheme } from '../../../theme/ThemeProvider';
+import { distanceKm } from '../../earthquake/utils/earthquakeFilters';
 
 const TURKEY_CENTER: [number, number] = [35.0, 39.0];
 const TURKEY_ZOOM = 5;
 const USER_FOCUS_ZOOM = 14;
 const EARTHQUAKE_FOCUS_ZOOM = 10;
 
+/**
+ * PRD §8: Harita ekranı.
+ *
+ * Bu ekranın kendisi artık sadece "kompozisyon" katmanı — kamera, canlı
+ * konum, yakındaki yerler ve OSRM rota mantığının hepsi ayrı hook'lara
+ * (`useMapCamera`, `useLiveLocation`, `useNearbyPlaces`, `useMapRoute`)
+ * taşındı; stil seçici / kategori çubuğu / rota banner'ı da ayrı
+ * bileşenlere (`MapStylePicker`, `CategoryChipBar`, `RouteStatusOverlay`)
+ * bölündü. Önceden 938 satırlık tek dosyaydı.
+ */
 export const MapScreen: React.FC = () => {
   const { colors } = useAppTheme();
   const { language } = useTranslation();
-  const cameraRef = useRef<CameraRef>(null);
   const navigation = useNavigation<NavigationProp<RootTabParamList>>();
   const route = useRoute<RouteProp<RootTabParamList, 'Map'>>();
   const isFocused = useIsFocused();
@@ -67,148 +54,79 @@ export const MapScreen: React.FC = () => {
   const filters = useAppSelector((state) => state.filters.filters);
   const { data: earthquakes, isLoading, isError, refetch } = useEarthquakes(filters);
 
-  // Declarative camera state
-  const [cameraCenter, setCameraCenter] = useState<[number, number]>(TURKEY_CENTER);
-  const [cameraZoom, setCameraZoom] = useState<number>(TURKEY_ZOOM);
+  const { cameraRef, flyTo } = useMapCamera();
 
-  // Map readiness & state
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [mapStyleType, setMapStyleType] = useState<MapStyleType>('bright');
   const [showStylePicker, setShowStylePicker] = useState(false);
   const [selectedEarthquake, setSelectedEarthquake] = useState<Earthquake | null>(null);
   const [previewEarthquake, setPreviewEarthquake] = useState<Earthquake | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<NearbyCategory | null>(null);
-  const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
   const [selectedPlace, setSelectedPlace] = useState<NearbyPlace | null>(null);
-  const [isFetchingPlaces, setIsFetchingPlaces] = useState(false);
-  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
-  // OSRM Route state
-  const [activeRoute, setActiveRoute] = useState<{
-    destinationName: string;
-    coordinates: [number, number][];
-    distanceKm: number;
-    durationMins: number;
-  } | null>(null);
-  const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+  const {
+    selectedCategories,
+    fetchingCategories,
+    nearbyPlaces,
+    isFetchingPlaces,
+    toggleCategory,
+    fetchCategory,
+    clearPlaces,
+    fetchPlacesForActiveCategories,
+  } = useNearbyPlaces();
 
-  const categoryChips: { id: NearbyCategory; titleTR: string; titleEN: string; icon: string; color: string }[] = [
-    { id: 'hospital', titleTR: 'Hastaneler', titleEN: 'Hospitals', icon: 'medical', color: '#E53935' },
-    { id: 'pharmacy', titleTR: 'Eczaneler', titleEN: 'Pharmacies', icon: 'medkit', color: '#2E7D32' },
-    { id: 'fire_station', titleTR: 'İtfaiye', titleEN: 'Fire Station', icon: 'flame', color: '#E65100' },
-    { id: 'police', titleTR: 'Polis', titleEN: 'Police', icon: 'shield', color: '#1565C0' },
-    { id: 'shelter', titleTR: 'Barınma / Toplanma', titleEN: 'Shelter / Assembly', icon: 'location', color: '#00838F' },
-  ];
+  const { activeRoute, isCalculatingRoute, drawRoute, findNearest, clearRoute, updateRouteProgress } = useMapRoute({ language });
 
-  const mapStyleUrl = mapStyleType === 'satellite' 
-    ? SATELLITE_STYLE_JSON 
-    : (mapStyleType === 'dark' ? DARK_MAP_URL : (mapStyleType === 'liberty' ? LIBERTY_MAP_URL : BRIGHT_MAP_URL));
+  const [lastSearchCoords, setLastSearchCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [mapCenter, setMapCenter] = useState<{ latitude: number; longitude: number } | null>(null);
 
-  // Tab bar press listener: clear params, clear selections, and return to user location!
+  // Odaklanmış herhangi bir deprem/mekan/rota yoksa kamera kullanıcıyı
+  // canlı olarak takip eder (yürürken haritanın onu izlemesi gibi).
+  const hasActiveFocus = !!(focusedEarthquakeId || paramEarthquake || selectedEarthquake || selectedPlace || activeRoute);
+
+  const { userLocation, fetchLocationOnDemand } = useLiveLocation({
+    isActive: isFocused,
+    onLocationChange: (coords, isInitial) => {
+      // Yol çizgilerini arkadan silmek/rota dışı kalmayı kontrol etmek için konumu bildir
+      updateRouteProgress(coords);
+
+      // Sadece ilk konum alındığında ve aktif bir odaklanma yoksa kamerayı taşı.
+      // Canlı GPS güncellemeleri (yürüyüş vb.) sırasında haritayı kullanıcının serbestçe
+      // inceleyebilmesi için kamerayı zorla taşımıyoruz.
+      if (isInitial && !hasActiveFocus) {
+        flyTo([coords.longitude, coords.latitude], USER_FOCUS_ZOOM, {
+          duration: 800,
+        });
+      }
+    },
+  });
+
+  const mapStyleUrl = getMapStyleUrl(mapStyleType);
+
+  // Tab bar'a tekrar basılınca: seçimleri temizle ve kullanıcı konumuna dön.
   useEffect(() => {
     const unsubscribe = navigation.addListener('tabPress' as any, () => {
       setSelectedEarthquake(null);
       setPreviewEarthquake(null);
       setSelectedPlace(null);
-      setActiveRoute(null);
+      clearRoute();
+      clearPlaces();
       setShowStylePicker(false);
+      setLastSearchCoords(null);
+      setMapCenter(null);
 
-      navigation.setParams({
-        focusedEarthquakeId: undefined,
-        focusedEarthquake: undefined,
-      });
+      navigation.setParams({ focusedEarthquakeId: undefined, focusedEarthquake: undefined });
 
       if (userLocation) {
-        setCameraCenter([userLocation.longitude, userLocation.latitude]);
-        setCameraZoom(USER_FOCUS_ZOOM);
-        cameraRef.current?.flyTo({
-          center: [userLocation.longitude, userLocation.latitude],
-          zoom: USER_FOCUS_ZOOM,
-          duration: 600,
-        });
+        flyTo([userLocation.longitude, userLocation.latitude], USER_FOCUS_ZOOM);
       } else {
-        setCameraCenter(TURKEY_CENTER);
-        setCameraZoom(TURKEY_ZOOM);
-        cameraRef.current?.flyTo({
-          center: TURKEY_CENTER,
-          zoom: TURKEY_ZOOM,
-          duration: 600,
-        });
+        flyTo(TURKEY_CENTER, TURKEY_ZOOM);
       }
     });
     return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigation, userLocation]);
 
-  /**
-   * Canlı GPS konum aboneliği (watchPositionAsync).
-   * Android Studio emülatörü yürüme rotasını veya cihaz hareketini CANLI olarak dinler.
-   */
-  useEffect(() => {
-    if (!isFocused) return undefined;
-
-    let locationSubscription: Location.LocationSubscription | null = null;
-    let isMounted = true;
-
-    const startLocationWatch = async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') return;
-
-        // Önce hızlı son konuma bak veya anlık konumu çek (Emülatör GPS provider uyumu için High kullanılıyor)
-        const initialLoc = await Location.getLastKnownPositionAsync() || await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-        if (initialLoc && isMounted) {
-          const coords = { latitude: initialLoc.coords.latitude, longitude: initialLoc.coords.longitude };
-          setUserLocation(coords);
-          setCameraCenter([coords.longitude, coords.latitude]);
-          setCameraZoom(USER_FOCUS_ZOOM);
-          if (!focusedEarthquakeId && !paramEarthquake && !selectedEarthquake) {
-            cameraRef.current?.flyTo({
-              center: [coords.longitude, coords.latitude],
-              zoom: USER_FOCUS_ZOOM,
-              duration: 800,
-            });
-          }
-        }
-
-        // Canlı GPS hareket akışını dinle (Emülatör yürüme rotası ve gerçek cihaz hareketi)
-        locationSubscription = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.High,
-            timeInterval: 1500,
-            distanceInterval: 1,
-          },
-          (newLocation) => {
-            if (!isMounted) return;
-            const coords = { latitude: newLocation.coords.latitude, longitude: newLocation.coords.longitude };
-            setUserLocation(coords);
-
-            // Odaklanmış herhangi bir deprem, mekan veya aktif rota yoksa canlı olarak kullanıcıyı takip et
-            if (!focusedEarthquakeId && !paramEarthquake && !selectedEarthquake && !selectedPlace && !activeRoute) {
-              setCameraCenter([coords.longitude, coords.latitude]);
-              cameraRef.current?.flyTo({
-                center: [coords.longitude, coords.latitude],
-                zoom: USER_FOCUS_ZOOM,
-                duration: 500,
-              });
-            }
-          }
-        );
-      } catch (err) {
-        // Location watch catch
-      }
-    };
-
-    startLocationWatch();
-
-    return () => {
-      isMounted = false;
-      if (locationSubscription) {
-        locationSubscription.remove();
-      }
-    };
-  }, [isFocused, focusedEarthquakeId, paramEarthquake, selectedEarthquake, selectedPlace, activeRoute]);
-
-  // Process explicitly passed earthquake parameter from Home screen navigation
+  // Ana Sayfa'dan belirli bir depreme odaklanma isteği geldiyse işle.
   useEffect(() => {
     if (!isFocused || !isMapLoaded) return undefined;
 
@@ -219,120 +137,71 @@ export const MapScreen: React.FC = () => {
       setPreviewEarthquake(null);
       setSelectedPlace(null);
 
-      setCameraCenter([target.longitude, target.latitude]);
-      setCameraZoom(EARTHQUAKE_FOCUS_ZOOM);
-
       const timer = setTimeout(() => {
-        cameraRef.current?.flyTo({
-          center: [target.longitude, target.latitude],
-          zoom: EARTHQUAKE_FOCUS_ZOOM,
-          duration: 800,
-        });
-
-        // Clear params after processing so bottom tab bar press won't re-trigger previous earthquake!
-        navigation.setParams({
-          focusedEarthquakeId: undefined,
-          focusedEarthquake: undefined,
-        });
+        flyTo([target.longitude, target.latitude], EARTHQUAKE_FOCUS_ZOOM, { duration: 800 });
+        // Parametreleri temizle ki tab bar'a tekrar basınca eski deprem geri gelmesin.
+        navigation.setParams({ focusedEarthquakeId: undefined, focusedEarthquake: undefined });
       }, 200);
 
       return () => clearTimeout(timer);
     }
     return undefined;
-  }, [isFocused, isMapLoaded, paramEarthquake, focusedEarthquakeId, earthquakes, navigation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFocused, isMapLoaded, paramEarthquake, focusedEarthquakeId, earthquakes]);
 
-  const handleToggleCategory = async (cat: NearbyCategory) => {
-    if (selectedCategory === cat) {
-      setSelectedCategory(null);
-      setNearbyPlaces([]);
-      setSelectedPlace(null);
-      return;
+  // Cihaz konumu ve harita yüklendiğinde varsayılan kategorileri yükle.
+  useEffect(() => {
+    if (userLocation && !lastSearchCoords && isMapLoaded) {
+      const lat = userLocation.latitude;
+      const lon = userLocation.longitude;
+      setLastSearchCoords({ latitude: lat, longitude: lon });
+      fetchPlacesForActiveCategories(selectedCategories, lat, lon);
     }
+  }, [userLocation, isMapLoaded, selectedCategories, lastSearchCoords, fetchPlacesForActiveCategories]);
 
-    const centerLat = userLocation?.latitude ?? TURKEY_CENTER[1];
-    const centerLon = userLocation?.longitude ?? TURKEY_CENTER[0];
+  const handleToggleCategory = async (cat: NearbyPlace['category']) => {
+    const searchLat = lastSearchCoords?.latitude ?? userLocation?.latitude ?? TURKEY_CENTER[1];
+    const searchLon = lastSearchCoords?.longitude ?? userLocation?.longitude ?? TURKEY_CENTER[0];
 
-    if (userLocation) {
-      setCameraCenter([userLocation.longitude, userLocation.latitude]);
-      setCameraZoom(13.5);
-      cameraRef.current?.flyTo({
-        center: [userLocation.longitude, userLocation.latitude],
-        zoom: 13.5,
-        duration: 600,
-      });
-    }
-
-    setSelectedCategory(cat);
     setSelectedPlace(null);
-    setIsFetchingPlaces(true);
+    await toggleCategory(cat, searchLat, searchLon);
+  };
 
-    const places = await fetchNearbyEmergencyPlaces(cat, centerLat, centerLon);
-    setNearbyPlaces(places);
-    setIsFetchingPlaces(false);
+  const handleSearchThisArea = async () => {
+    if (!mapCenter) return;
+    const lat = mapCenter.latitude;
+    const lon = mapCenter.longitude;
+    setLastSearchCoords({ latitude: lat, longitude: lon });
+    await fetchPlacesForActiveCategories(selectedCategories, lat, lon);
   };
 
   const handleDrawRoute = async (targetPlace: NearbyPlace) => {
-    if (!userLocation) {
-      Alert.alert(
-        language === 'tr' ? 'Konum Alınamadı' : 'Location Not Found',
-        language === 'tr' ? 'Rota çizebilmek için lütfen konum izninizin ve cihaz GPS servisinizin açık olduğundan emin olun.' : 'Please make sure location permission and GPS are turned on to draw route.'
-      );
-      return;
-    }
-
     setSelectedPlace(null);
-    setIsCalculatingRoute(true);
-
-    const start = { latitude: userLocation.latitude, longitude: userLocation.longitude };
-    const end = { latitude: targetPlace.latitude, longitude: targetPlace.longitude };
-
-    const route = await getOsrmRoute(start, end);
-    setIsCalculatingRoute(false);
-
-    if (route) {
-      const distKm = route.distanceMeters / 1000;
-      const durationMins = Math.round(route.durationSeconds / 60);
-
-      setActiveRoute({
-        destinationName: targetPlace.name,
-        coordinates: route.coordinates,
-        distanceKm: distKm,
-        durationMins: durationMins < 1 ? 1 : durationMins,
-      });
-
-      setCameraCenter([start.longitude, start.latitude]);
-      setCameraZoom(14);
-      cameraRef.current?.flyTo({
-        center: [start.longitude, start.latitude],
-        zoom: 14,
-        duration: 700,
-      });
-    } else {
-      Alert.alert(
-        language === 'tr' ? 'Rota Oluşturulamadı' : 'Route Error',
-        language === 'tr' ? 'Sürüş rotası hesaplanırken bir hata oluştu.' : 'Could not calculate driving route.'
-      );
+    const success = await drawRoute(userLocation, targetPlace);
+    if (success && userLocation) {
+      flyTo([userLocation.longitude, userLocation.latitude], 14, { duration: 700 });
     }
   };
 
-  /** Tek dokunuşla en yakın hastane veya toplanma alanına sürüş rotası hesaplar */
+  /** Tek dokunuşla en yakın hastane veya toplanma alanına sürüş rotası hesaplar. */
   const handleQuickEmergencyRoute = async (category: 'hospital' | 'shelter') => {
     if (!userLocation) {
       Alert.alert(
         language === 'tr' ? 'Konum Alınamadı' : 'Location Required',
-        language === 'tr' ? 'En yakın rotayı hesaplamak için lütfen konum izninizin ve GPS servisinizin açık olduğundan emin olun.' : 'Location permission and GPS are required for nearest route.'
+        language === 'tr'
+          ? 'En yakın rotayı hesaplamak için lütfen konum izninizin ve GPS servisinizin açık olduğundan emin olun.'
+          : 'Location permission and GPS are required for nearest route.'
       );
       return;
     }
 
-    setIsCalculatingRoute(true);
     setSelectedPlace(null);
     setSelectedEarthquake(null);
 
-    const places = await fetchNearbyEmergencyPlaces(category, userLocation.latitude, userLocation.longitude);
+    const places = await fetchCategory(category, userLocation.latitude, userLocation.longitude);
+    const nearest = findNearest(userLocation, places);
 
-    if (places.length === 0) {
-      setIsCalculatingRoute(false);
+    if (!nearest) {
       Alert.alert(
         language === 'tr' ? 'Mekan Bulunamadı' : 'No Places Found',
         language === 'tr' ? 'Yakınınızda kayıtlı mekan bulunamadı.' : 'No registered places found nearby.'
@@ -340,80 +209,14 @@ export const MapScreen: React.FC = () => {
       return;
     }
 
-    const firstPlace = places[0];
-    if (!firstPlace) {
-      setIsCalculatingRoute(false);
-      return;
-    }
-
-    let nearest: NearbyPlace = firstPlace;
-    let minDist = distanceKm(userLocation.latitude, userLocation.longitude, firstPlace.latitude, firstPlace.longitude);
-
-    for (let i = 1; i < places.length; i++) {
-      const p = places[i];
-      if (p) {
-        const d = distanceKm(userLocation.latitude, userLocation.longitude, p.latitude, p.longitude);
-        if (d < minDist) {
-          minDist = d;
-          nearest = p;
-        }
-      }
-    }
-
-    setNearbyPlaces(places);
-    setSelectedCategory(category);
     await handleDrawRoute(nearest);
-  };
-
-  const fetchLocationOnDemand = async (): Promise<{ latitude: number; longitude: number } | null> => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          language === 'tr' ? 'Konum İzni Gerekli' : 'Permission Required',
-          language === 'tr' ? 'Haritada konumunuzu görebilmek için lütfen uygulama ayarlarından konum iznini onaylayın.' : 'Please allow location permission in app settings.'
-        );
-        return null;
-      }
-
-      // 1. Önce hafızadaki son konumu dene (Anında döner)
-      const lastKnown = await Location.getLastKnownPositionAsync();
-      if (lastKnown) {
-        const coords = { latitude: lastKnown.coords.latitude, longitude: lastKnown.coords.longitude };
-        setUserLocation(coords);
-        return coords;
-      }
-
-      // 2. Android Studio emülatörü GPS sağlayıcısından yüksek doğrulukla konumu iste
-      const locationPromise = Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500));
-
-      const result = await Promise.race([locationPromise, timeoutPromise]);
-      if (result && 'coords' in result) {
-        const coords = { latitude: result.coords.latitude, longitude: result.coords.longitude };
-        setUserLocation(coords);
-        return coords;
-      }
-
-      return userLocation;
-    } catch (err) {
-      return userLocation;
-    }
   };
 
   const handleRecenterUser = async () => {
     const loc = await fetchLocationOnDemand();
 
     if (loc) {
-      setCameraCenter([loc.longitude, loc.latitude]);
-      setCameraZoom(USER_FOCUS_ZOOM);
-      cameraRef.current?.flyTo({
-        center: [loc.longitude, loc.latitude],
-        zoom: USER_FOCUS_ZOOM,
-        duration: 600,
-      });
+      flyTo([loc.longitude, loc.latitude], USER_FOCUS_ZOOM);
     } else {
       Alert.alert(
         language === 'tr' ? 'GPS Konumu Alınamadı' : 'GPS Unavailable',
@@ -421,6 +224,93 @@ export const MapScreen: React.FC = () => {
           ? 'Emülatörün/Cihazın GPS konumu okunamadı. Lütfen Android emülatör araç çubuğundaki "..." -> Location sekmesinden "Set Location" butonuna bastığınızdan ve cihaz konum servisinin açık olduğundan emin olun.'
           : 'Could not acquire GPS position. Please ensure location services are enabled.'
       );
+    }
+  };
+
+  /** Haritada herhangi bir boş yere veya nesneye dokunulduğunda koordinatı yakalar ve Pin bırakır. */
+  const handleMapPress = async (event: any) => {
+    let lat: number | undefined;
+    let lon: number | undefined;
+
+    // 1. nativeEvent koordinatları (boş harita tıklamaları için)
+    const nativeEvent = event?.nativeEvent;
+    if (nativeEvent) {
+      if (Array.isArray(nativeEvent.lngLat)) {
+        lon = nativeEvent.lngLat[0];
+        lat = nativeEvent.lngLat[1];
+      } else if (Array.isArray(nativeEvent.coordinate)) {
+        lon = nativeEvent.coordinate[0];
+        lat = nativeEvent.coordinate[1];
+      } else if (nativeEvent.coordinate && typeof nativeEvent.coordinate === 'object') {
+        lat = nativeEvent.coordinate.latitude;
+        lon = nativeEvent.coordinate.longitude;
+      }
+    }
+
+    // 2. Fallback (üzerine tıklanabilir katmanlar/semboller için)
+    if (lat === undefined || lon === undefined) {
+      if (Array.isArray(event?.geometry?.coordinates)) {
+        lon = event.geometry.coordinates[0];
+        lat = event.geometry.coordinates[1];
+      } else if (Array.isArray(event?.coordinates)) {
+        lon = event.coordinates[0];
+        lat = event.coordinates[1];
+      } else if (event?.coordinates && typeof event.coordinates === 'object') {
+        lat = event.coordinates.latitude;
+        lon = event.coordinates.longitude;
+      } else if (typeof event?.latitude === 'number' && typeof event?.longitude === 'number') {
+        lat = event.latitude;
+        lon = event.longitude;
+      }
+    }
+
+    if (typeof lat !== 'number' || typeof lon !== 'number' || isNaN(lat) || isNaN(lon)) {
+      return;
+    }
+
+    const vectorName = event?.properties?.name || event?.properties?.['name:tr'] || event?.properties?.title;
+
+    setSelectedEarthquake(null);
+    setPreviewEarthquake(null);
+
+    const tempPlace: NearbyPlace = {
+      id: `custom-place-${Date.now()}`,
+      category: 'shelter',
+      name: vectorName || (language === 'tr' ? 'Seçilen Nokta' : 'Selected Location'),
+      latitude: lat,
+      longitude: lon,
+    };
+
+    setSelectedPlace(tempPlace);
+    flyTo([lon, lat], 15, { duration: 500 });
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`,
+        {
+          headers: {
+            'User-Agent': 'SafeQuakeApp/1.0 (https://safequake.app)',
+            'Accept-Language': language === 'tr' ? 'tr,en' : 'en,tr',
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const realName = data.name || data.display_name?.split(',')?.[0]?.trim() || vectorName || (language === 'tr' ? 'Seçilen Nokta' : 'Selected Point');
+        const fullAddress = data.display_name?.split(',')?.slice(1, 4)?.join(',')?.trim() || undefined;
+
+        setSelectedPlace({
+          id: `custom-place-${Date.now()}`,
+          category: 'shelter',
+          name: realName,
+          latitude: lat,
+          longitude: lon,
+          address: fullAddress,
+        });
+      }
+    } catch (err) {
+      // Fallback
     }
   };
 
@@ -432,9 +322,14 @@ export const MapScreen: React.FC = () => {
     return <ErrorState message={language === 'tr' ? 'Harita verileri alınamadı.' : 'Could not load map data.'} onRetry={refetch} />;
   }
 
-  // Camera initial position determination (User position vs Turkey fallback)
   const cameraInitialCenter: [number, number] = userLocation ? [userLocation.longitude, userLocation.latitude] : TURKEY_CENTER;
   const cameraInitialZoom: number = userLocation ? USER_FOCUS_ZOOM : TURKEY_ZOOM;
+
+  const showSearchThisArea = !!(
+    mapCenter &&
+    lastSearchCoords &&
+    distanceKm(mapCenter.latitude, mapCenter.longitude, lastSearchCoords.latitude, lastSearchCoords.longitude) > 1.5
+  );
 
   return (
     <View style={styles.container}>
@@ -443,14 +338,21 @@ export const MapScreen: React.FC = () => {
         mapStyle={mapStyleUrl}
         androidView="surface"
         onDidFinishLoadingMap={() => setIsMapLoaded(true)}
+        onPress={handleMapPress}
+        onRegionDidChange={(feature: any) => {
+          const coords = feature?.geometry?.coordinates || feature?.nativeEvent?.geometry?.coordinates;
+          if (coords) {
+            const [lon, lat] = coords;
+            setMapCenter({ latitude: lat, longitude: lon });
+          }
+        }}
       >
         <Camera
-          key={userLocation ? `${userLocation.latitude}-${userLocation.longitude}` : 'turkey-default-camera'}
+          key="safequake-map-camera"
           ref={cameraRef}
           initialViewState={{ center: cameraInitialCenter, zoom: cameraInitialZoom }}
         />
 
-        {/* Live User Location Marker */}
         {userLocation && (
           <MLMarker lngLat={[userLocation.longitude, userLocation.latitude]} id="user-location-custom">
             <View style={styles.userLocationMarkerOuter}>
@@ -459,34 +361,31 @@ export const MapScreen: React.FC = () => {
           </MLMarker>
         )}
 
-        {/* Render OSRM Active Navigation Route Line */}
         {activeRoute && (
           <GeoJSONSource
             id="osrm-route-source"
             data={{
               type: 'Feature',
               properties: {},
-              geometry: {
-                type: 'LineString',
-                coordinates: activeRoute.coordinates,
-              },
+              geometry: { type: 'LineString', coordinates: activeRoute.coordinates },
             }}
           >
             <Layer
               id="osrm-route-line"
               type="line"
-              style={{
-                lineColor: '#007AFF',
-                lineWidth: 6,
-                lineCap: 'round',
-                lineJoin: 'round',
-                lineOpacity: 0.9,
+              paint={{
+                'line-color': '#007AFF',
+                'line-width': 6,
+                'line-opacity': 0.9,
+              }}
+              layout={{
+                'line-cap': 'round',
+                'line-join': 'round',
               }}
             />
           </GeoJSONSource>
         )}
 
-        {/* Render Earthquake Pulse Markers */}
         {(earthquakes ?? []).map((earthquake) => (
           <MLMarker
             key={earthquake.id}
@@ -501,11 +400,8 @@ export const MapScreen: React.FC = () => {
           </MLMarker>
         ))}
 
-        {/* Render Nearby Emergency Place Markers */}
         {nearbyPlaces.map((place) => {
-          const chipConfig = categoryChips.find((c) => c.id === place.category);
-          const iconName = chipConfig?.icon ?? 'location';
-          const placeColor = chipConfig?.color ?? colors.primary;
+          const chipConfig = { hospital: { icon: 'medical', color: '#E53935' }, pharmacy: { icon: 'medkit', color: '#2E7D32' }, fire_station: { icon: 'flame', color: '#E65100' }, police: { icon: 'shield', color: '#1565C0' }, shelter: { icon: 'location', color: '#00838F' } }[place.category];
 
           return (
             <MLMarker
@@ -518,170 +414,90 @@ export const MapScreen: React.FC = () => {
                 setSelectedPlace(place);
               }}
             >
-              <View style={[styles.placeMarkerOuter, { backgroundColor: placeColor }]}>
-                <Ionicons name={iconName as any} size={14} color="#FFFFFF" />
+              <View style={[styles.placeMarkerOuter, { backgroundColor: chipConfig.color }]}>
+                <Ionicons name={chipConfig.icon as any} size={14} color="#FFFFFF" />
               </View>
             </MLMarker>
           );
         })}
+
+        {/* Seçilen Özel Nokta Pin İşaretçisi */}
+        {selectedPlace && (
+          <MLMarker
+            id="selected-place-pin"
+            lngLat={[selectedPlace.longitude, selectedPlace.latitude]}
+          >
+            <View style={[styles.placeMarkerOuter, { backgroundColor: colors.primary }]}>
+              <Ionicons name="pin" size={14} color="#FFFFFF" />
+            </View>
+          </MLMarker>
+        )}
+
+        {/* Aktif Rota Varış Noktası İşaretçisi */}
+        {activeRoute && activeRoute.coordinates.length > 0 && (
+          <MLMarker
+            id="active-route-destination"
+            lngLat={activeRoute.coordinates[activeRoute.coordinates.length - 1] as [number, number]}
+          >
+            <View style={[styles.placeMarkerOuter, { backgroundColor: '#007AFF' }]}>
+              <Ionicons name="flag" size={14} color="#FFFFFF" />
+            </View>
+          </MLMarker>
+        )}
       </Map>
 
-      {/* Top Floating Category Selector Bar */}
-      <View style={styles.topBarContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.topBarScroll}>
-          {/* Quick Route to Nearest Hospital */}
+      {/* Floating Search This Area Button */}
+      {showSearchThisArea && (
+        <View style={styles.searchAreaContainer}>
           <TouchableOpacity
             activeOpacity={0.85}
-            style={[styles.quickRouteBtn, { backgroundColor: '#E53935' }]}
-            onPress={() => handleQuickEmergencyRoute('hospital')}
+            style={[
+              styles.searchAreaBtn,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.primary,
+              },
+            ]}
+            onPress={handleSearchThisArea}
           >
-            <Ionicons name="flash" size={14} color="#FFFFFF" />
-            <Text style={styles.quickRouteText}>
-              {language === 'tr' ? 'En Yakın Hastane Rotası' : 'Nearest Hospital Route'}
+            {isFetchingPlaces ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Ionicons name="refresh" size={14} color={colors.primary} />
+            )}
+            <Text style={[styles.searchAreaText, { color: colors.primary }]}>
+              {language === 'tr' ? 'Bu Bölgede Ara' : 'Search This Area'}
             </Text>
           </TouchableOpacity>
-
-          {/* Quick Route to Nearest Shelter */}
-          <TouchableOpacity
-            activeOpacity={0.85}
-            style={[styles.quickRouteBtn, { backgroundColor: '#00838F' }]}
-            onPress={() => handleQuickEmergencyRoute('shelter')}
-          >
-            <Ionicons name="navigate" size={14} color="#FFFFFF" />
-            <Text style={styles.quickRouteText}>
-              {language === 'tr' ? 'En Yakın Barınma Rotası' : 'Nearest Shelter Route'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Standard Category Filter Chips */}
-          {categoryChips.map((chip) => {
-            const isSelected = selectedCategory === chip.id;
-            return (
-              <TouchableOpacity
-                key={chip.id}
-                activeOpacity={0.85}
-                style={[
-                  styles.chipButton,
-                  {
-                    backgroundColor: isSelected ? chip.color : colors.surface,
-                    borderColor: isSelected ? chip.color : colors.border,
-                  },
-                ]}
-                onPress={() => handleToggleCategory(chip.id)}
-              >
-                {isFetchingPlaces && isSelected ? (
-                  <ActivityIndicator size="small" color={isSelected ? '#FFFFFF' : chip.color} />
-                ) : (
-                  <Ionicons name={chip.icon as any} size={14} color={isSelected ? '#FFFFFF' : chip.color} />
-                )}
-                <Text style={[styles.chipText, { color: isSelected ? '#FFFFFF' : colors.onSurface }]}>
-                  {language === 'tr' ? chip.titleTR : chip.titleEN}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Active Navigation Route Floating Banner */}
-      {activeRoute && (
-        <View style={[styles.routeBanner, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.routeBannerContent}>
-            <View style={styles.routeBannerIcon}>
-              <Ionicons name="car" size={20} color="#007AFF" />
-            </View>
-            <View style={styles.routeBannerTextGroup}>
-              <Text style={[styles.routeDestTitle, { color: colors.onSurface }]} numberOfLines={1}>
-                {activeRoute.destinationName}
-              </Text>
-              <Text style={[styles.routeStatsText, { color: colors.onSurfaceVariant }]}>
-                🚗 {activeRoute.distanceKm.toFixed(1)} km · ⏱️ {activeRoute.durationMins} {language === 'tr' ? 'dk sürüş' : 'mins drive'}
-              </Text>
-            </View>
-            <TouchableOpacity style={styles.clearRouteBtn} onPress={() => setActiveRoute(null)}>
-              <Ionicons name="close-circle" size={22} color={colors.onSurfaceVariant} />
-            </TouchableOpacity>
-          </View>
         </View>
       )}
 
-      {/* Calculating Route Indicator */}
-      {isCalculatingRoute && (
-        <View style={[styles.calculatingBanner, { backgroundColor: colors.surface }]}>
-          <ActivityIndicator size="small" color={colors.primary} />
-          <Text style={[styles.calculatingText, { color: colors.onSurface }]}>
-            {language === 'tr' ? 'Canlı sürüş rotası çiziliyor...' : 'Calculating driving route...'}
-          </Text>
-        </View>
-      )}
+      <CategoryChipBar
+        language={language}
+        selectedCategories={selectedCategories}
+        fetchingCategories={fetchingCategories}
+        onToggleCategory={handleToggleCategory}
+        onQuickRoute={handleQuickEmergencyRoute}
+      />
 
-      {/* Map Style Picker Float Menu (Top Right) */}
-      <View style={styles.stylePickerWrapper}>
-        <TouchableOpacity
-          style={[styles.floatingCircleBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          onPress={() => setShowStylePicker(!showStylePicker)}
-        >
-          <Ionicons name="layers" size={20} color={colors.primary} />
-        </TouchableOpacity>
+      <RouteStatusOverlay
+        activeRoute={activeRoute}
+        isCalculatingRoute={isCalculatingRoute}
+        language={language}
+        onClearRoute={clearRoute}
+      />
 
-        {showStylePicker && (
-          <View style={[styles.stylePickerDropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <TouchableOpacity
-              style={[styles.styleOption, mapStyleType === 'bright' && { backgroundColor: colors.primary + '15' }]}
-              onPress={() => {
-                setMapStyleType('bright');
-                setShowStylePicker(false);
-              }}
-            >
-              <Ionicons name="sunny" size={16} color={mapStyleType === 'bright' ? colors.primary : colors.onSurface} />
-              <Text style={[styles.styleOptionText, { color: mapStyleType === 'bright' ? colors.primary : colors.onSurface }]}>
-                {language === 'tr' ? 'Canlı & Renkli' : 'Vibrant Bright'}
-              </Text>
-            </TouchableOpacity>
+      <MapStylePicker
+        value={mapStyleType}
+        onChange={(style) => {
+          setMapStyleType(style);
+          setShowStylePicker(false);
+        }}
+        language={language}
+        isOpen={showStylePicker}
+        onToggleOpen={() => setShowStylePicker((v) => !v)}
+      />
 
-            <TouchableOpacity
-              style={[styles.styleOption, mapStyleType === 'liberty' && { backgroundColor: colors.primary + '15' }]}
-              onPress={() => {
-                setMapStyleType('liberty');
-                setShowStylePicker(false);
-              }}
-            >
-              <Ionicons name="map-outline" size={16} color={mapStyleType === 'liberty' ? colors.primary : colors.onSurface} />
-              <Text style={[styles.styleOptionText, { color: mapStyleType === 'liberty' ? colors.primary : colors.onSurface }]}>
-                {language === 'tr' ? 'Detaylı Vektör' : 'Detailed Vector'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.styleOption, mapStyleType === 'dark' && { backgroundColor: colors.primary + '15' }]}
-              onPress={() => {
-                setMapStyleType('dark');
-                setShowStylePicker(false);
-              }}
-            >
-              <Ionicons name="moon-outline" size={16} color={mapStyleType === 'dark' ? colors.primary : colors.onSurface} />
-              <Text style={[styles.styleOptionText, { color: mapStyleType === 'dark' ? colors.primary : colors.onSurface }]}>
-                {language === 'tr' ? 'Karanlık' : 'Dark'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.styleOption, mapStyleType === 'satellite' && { backgroundColor: colors.primary + '15' }]}
-              onPress={() => {
-                setMapStyleType('satellite');
-                setShowStylePicker(false);
-              }}
-            >
-              <Ionicons name="planet-outline" size={16} color={mapStyleType === 'satellite' ? colors.primary : colors.onSurface} />
-              <Text style={[styles.styleOptionText, { color: mapStyleType === 'satellite' ? colors.primary : colors.onSurface }]}>
-                {language === 'tr' ? 'Uydu' : 'Satellite'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
-      {/* Recenter User Location Button (Bottom Right) */}
       <TouchableOpacity
         style={[styles.recenterButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
         onPress={handleRecenterUser}
@@ -689,7 +505,6 @@ export const MapScreen: React.FC = () => {
         <Ionicons name="navigate" size={20} color={colors.primary} />
       </TouchableOpacity>
 
-      {/* Floating Pin Callout Preview */}
       {previewEarthquake && (
         <View style={styles.calloutWrapper}>
           <EarthquakeCallout
@@ -703,23 +518,13 @@ export const MapScreen: React.FC = () => {
         </View>
       )}
 
-      {/* Earthquake Detail Sheet */}
       <BottomSheet visible={!!selectedEarthquake} onClose={() => setSelectedEarthquake(null)}>
-        {selectedEarthquake ? (
-          <EarthquakeDetailSheetContent earthquake={selectedEarthquake} />
-        ) : (
-          <View />
-        )}
+        {selectedEarthquake ? <EarthquakeDetailSheetContent earthquake={selectedEarthquake} /> : <View />}
       </BottomSheet>
 
-      {/* Nearby Place Detail Sheet */}
       <BottomSheet visible={!!selectedPlace} onClose={() => setSelectedPlace(null)}>
         {selectedPlace ? (
-          <LocationDetailSheetContent
-            place={selectedPlace}
-            userLocation={userLocation}
-            onDrawRoute={handleDrawRoute}
-          />
+          <LocationDetailSheetContent place={selectedPlace} userLocation={userLocation} onDrawRoute={handleDrawRoute} />
         ) : (
           <View />
         )}
@@ -730,165 +535,7 @@ export const MapScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topBarContainer: {
-    position: 'absolute',
-    top: 50,
-    left: 0,
-    right: 0,
-  },
-  topBarScroll: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  quickRouteBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  quickRouteText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  chipButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  routeBanner: {
-    position: 'absolute',
-    top: 96,
-    left: 16,
-    right: 70,
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 10,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.18,
-    shadowRadius: 5,
-    elevation: 5,
-  },
-  routeBannerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  routeBannerIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#007AFF15',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  routeBannerTextGroup: {
-    flex: 1,
-    gap: 2,
-  },
-  routeDestTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  routeStatsText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  clearRouteBtn: {
-    padding: 2,
-  },
-  calculatingBanner: {
-    position: 'absolute',
-    top: 100,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  calculatingText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  stylePickerWrapper: {
-    position: 'absolute',
-    top: 105,
-    right: 16,
-    alignItems: 'flex-end',
-  },
-  floatingCircleBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-  },
-  stylePickerDropdown: {
-    marginTop: 8,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 6,
-    gap: 4,
-    minWidth: 120,
-    elevation: 6,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-  },
-  styleOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-  },
-  styleOptionText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  calloutWrapper: {
-    position: 'absolute',
-    bottom: 90,
-    left: 16,
-    right: 16,
-    alignItems: 'center',
-  },
+  calloutWrapper: { position: 'absolute', bottom: 90, left: 16, right: 16, alignItems: 'center' },
   placeMarkerOuter: {
     width: 28,
     height: 28,
@@ -897,7 +544,7 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: '#00',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3,
@@ -911,14 +558,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  userLocationMarkerInner: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#007AFF',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
+  userLocationMarkerInner: { width: 14, height: 14, borderRadius: 7, backgroundColor: '#007AFF', borderWidth: 2, borderColor: '#FFFFFF' },
   recenterButton: {
     position: 'absolute',
     bottom: 30,
@@ -934,5 +574,31 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
+  },
+  searchAreaContainer: {
+    position: 'absolute',
+    top: 105,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  searchAreaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  searchAreaText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

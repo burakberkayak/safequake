@@ -1,7 +1,7 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
-export type AppThemeMode = 'light' | 'dark' | 'system';
-export type AppLanguage = 'tr' | 'en';
+export type AppThemeMode = "light" | "dark" | "system";
+export type AppLanguage = "tr" | "en";
 
 interface SettingsState {
   themeMode: AppThemeMode;
@@ -13,8 +13,8 @@ interface SettingsState {
 }
 
 const initialState: SettingsState = {
-  themeMode: 'system',
-  language: 'tr',
+  themeMode: "system",
+  language: "tr",
   locationPermissionGranted: false,
   notificationPermissionGranted: false,
   minMagnitudeNotify: 4, // Default to 4.0+
@@ -22,7 +22,7 @@ const initialState: SettingsState = {
 };
 
 const settingsSlice = createSlice({
-  name: 'settings',
+  name: "settings",
   initialState,
   reducers: {
     setThemeMode: (state, action: PayloadAction<AppThemeMode>) => {
@@ -37,21 +37,27 @@ const settingsSlice = createSlice({
     setNotificationPermission: (state, action: PayloadAction<boolean>) => {
       state.notificationPermissionGranted = action.payload;
     },
-    setMinMagnitudeNotify: (state, action: PayloadAction<number | undefined>) => {
+    setMinMagnitudeNotify: (
+      state,
+      action: PayloadAction<number | undefined>,
+    ) => {
       state.minMagnitudeNotify = action.payload;
     },
-    setMaxDistanceNotifyKm: (state, action: PayloadAction<number | undefined>) => {
+    setMaxDistanceNotifyKm: (
+      state,
+      action: PayloadAction<number | undefined>,
+    ) => {
       state.maxDistanceNotifyKm = action.payload;
     },
   },
 });
 
-export const { 
-  setThemeMode, 
-  setLanguage, 
-  setLocationPermission, 
+export const {
+  setThemeMode,
+  setLanguage,
+  setLocationPermission,
   setNotificationPermission,
   setMinMagnitudeNotify,
-  setMaxDistanceNotifyKm
+  setMaxDistanceNotifyKm,
 } = settingsSlice.actions;
 export default settingsSlice.reducer;

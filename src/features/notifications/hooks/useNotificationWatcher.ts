@@ -74,7 +74,7 @@ export const useNotificationWatcher = () => {
         const depthLabel = translations[lang].alertDepth;
         const dateLabel = translations[lang].alertDate;
 
-        const { date, time } = formatEarthquakeDateTime(latest.occurredAt);
+        const { date, time } = formatEarthquakeDateTime(latest.occurredAt, lang);
 
         // Trigger local notification
         await Notifications.scheduleNotificationAsync({

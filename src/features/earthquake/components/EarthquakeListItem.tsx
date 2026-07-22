@@ -4,6 +4,7 @@ import { useAppTheme } from '../../../theme/ThemeProvider';
 import { Earthquake } from '../types/earthquake.types';
 import { MagnitudeBadge } from './MagnitudeBadge';
 import { formatEarthquakeDateTime } from '../utils/formatEarthquake';
+import { useTranslation } from '../../../hooks/useTranslation';
 
 interface EarthquakeListItemProps {
   earthquake: Earthquake;
@@ -16,7 +17,8 @@ interface EarthquakeListItemProps {
 export const EarthquakeListItem: React.FC<EarthquakeListItemProps> = React.memo(
   ({ earthquake, onPress }) => {
     const { colors } = useAppTheme();
-    const { date, time } = formatEarthquakeDateTime(earthquake.occurredAt);
+    const { language } = useTranslation();
+    const { date, time } = formatEarthquakeDateTime(earthquake.occurredAt, language);
 
     return (
       <Pressable
