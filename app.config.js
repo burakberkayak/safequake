@@ -56,6 +56,7 @@ module.exports = ({ config }) => ({
       "expo-asset",
       "expo-font",
       "expo-secure-store",
+      "expo-audio",
       "@maplibre/maplibre-react-native",
       [
         "expo-splash-screen",

@@ -83,7 +83,7 @@ export const MapScreen: React.FC = () => {
   // canlı olarak takip eder (yürürken haritanın onu izlemesi gibi).
   const hasActiveFocus = !!(focusedEarthquakeId || paramEarthquake || selectedEarthquake || selectedPlace || activeRoute);
 
-  const { userLocation, fetchLocationOnDemand } = useLiveLocation({
+  const { userLocation, heading, fetchLocationOnDemand } = useLiveLocation({
     isActive: isFocused,
     onLocationChange: (coords, isInitial) => {
       // Yol çizgilerini arkadan silmek/rota dışı kalmayı kontrol etmek için konumu bildir
@@ -355,8 +355,20 @@ export const MapScreen: React.FC = () => {
 
         {userLocation && (
           <MLMarker lngLat={[userLocation.longitude, userLocation.latitude]} id="user-location-custom">
-            <View style={styles.userLocationMarkerOuter}>
-              <View style={styles.userLocationMarkerInner} />
+            <View style={styles.userLocationMarkerContainer}>
+              {heading !== null && (
+                <View
+                  style={[
+                    styles.userLocationDirectionContainer,
+                    { transform: [{ rotate: `${heading}deg` }] },
+                  ]}
+                >
+                  <View style={styles.userLocationDirectionBeam} />
+                </View>
+              )}
+              <View style={styles.userLocationMarkerOuter}>
+                <View style={styles.userLocationMarkerInner} />
+              </View>
             </View>
           </MLMarker>
         )}
@@ -549,6 +561,33 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3,
     elevation: 4,
+  },
+  userLocationMarkerContainer: {
+    width: 60,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  userLocationDirectionContainer: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  userLocationDirectionBeam: {
+    position: 'absolute',
+    top: 12,
+    left: 18,
+    width: 0,
+    height: 0,
+    borderStyle: 'solid',
+    borderLeftWidth: 12,
+    borderRightWidth: 12,
+    borderTopWidth: 18,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: 'rgba(0, 122, 255, 0.25)',
   },
   userLocationMarkerOuter: {
     width: 24,

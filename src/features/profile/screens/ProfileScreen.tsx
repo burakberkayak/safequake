@@ -87,14 +87,9 @@ export const ProfileScreen: React.FC = () => {
     );
   };
 
-  const displayName =
-    settings.language === "tr"
-      ? user?.displayName || "Misafir"
-      : user?.displayName || "Guest";
-  const email =
-    settings.language === "tr"
-      ? user?.email || "E-posta belirtilmemiş"
-      : user?.email || "Email not provided";
+  const isGuest = !user?.displayName || user.displayName === "Misafir Kullanıcı" || user.displayName === "Guest User";
+  const displayName = isGuest ? t("guestUser") : (user?.displayName ?? "");
+  const email = user?.email || t("noEmailProvided");
 
   return (
     <SafeAreaView

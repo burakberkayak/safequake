@@ -25,6 +25,7 @@ interface UseLiveLocationOptions {
  */
 export const useLiveLocation = ({ isActive, onLocationChange }: UseLiveLocationOptions) => {
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
+  const [heading, setHeading] = useState<number | null>(null);
 
   // Her render'da güncel callback'i ref'te tutuyoruz ki effect'i yeniden
   // başlatmadan (GPS aboneliğini bozmadan) her zaman en güncel MapScreen
@@ -36,6 +37,7 @@ export const useLiveLocation = ({ isActive, onLocationChange }: UseLiveLocationO
     if (!isActive) return undefined;
 
     let subscription: Location.LocationSubscription | null = null;
+    let headingSubscription: Location.LocationSubscription | null = null;
     let isMounted = true;
 
     const start = async () => {
@@ -68,6 +70,21 @@ export const useLiveLocation = ({ isActive, onLocationChange }: UseLiveLocationO
             onLocationChangeRef.current?.(coords, false);
           }
         );
+
+        // Cihazın baktığı yönü (heading) takip et
+        try {
+          headingSubscription = await Location.watchHeadingAsync((headingData) => {
+            if (!isMounted) return;
+            // trueHeading varsa kullan, yoksa magneticHeading değerini al
+            const headingVal = headingData.trueHeading !== -1 ? headingData.trueHeading : headingData.magHeading;
+            
+            // Re-render'ları optimize etmek için sadece yön değiştiğinde (derece farkı > 2 ise) güncelleme yapabiliriz,
+            // ama doğrudan hassas takip için direkt set ediyoruz.
+            setHeading(headingVal);
+          });
+        } catch (headingError) {
+          console.warn('Pusula/Yön sensörü bu cihazda desteklenmiyor:', headingError);
+        }
       } catch {
         // Sessiz geç — izin/GPS kapalıysa harita Türkiye varsayılanında kalır.
       }
@@ -78,6 +95,7 @@ export const useLiveLocation = ({ isActive, onLocationChange }: UseLiveLocationO
     return () => {
       isMounted = false;
       subscription?.remove();
+      headingSubscription?.remove();
     };
   }, [isActive]);
 
@@ -109,5 +127,5 @@ export const useLiveLocation = ({ isActive, onLocationChange }: UseLiveLocationO
     }
   };
 
-  return { userLocation, fetchLocationOnDemand };
+  return { userLocation, heading, fetchLocationOnDemand };
 };

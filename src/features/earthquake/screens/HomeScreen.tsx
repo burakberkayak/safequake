@@ -1,29 +1,41 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { View, FlatList, StyleSheet, RefreshControl, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { useAppTheme } from '../../../theme/ThemeProvider';
-import { useAppSelector } from '../../../store/hooks';
-import { useEarthquakes, useLatestEarthquake } from '../hooks/useEarthquakes';
-import { Earthquake } from '../types/earthquake.types';
-import { LastEarthquakeCard } from '../components/LastEarthquakeCard';
-import { EarthquakeListItem } from '../components/EarthquakeListItem';
-import { EarthquakeStatsBanner } from '../components/EarthquakeStatsBanner';
-import { EarthquakeStatsSheet } from '../components/EarthquakeStatsSheet';
-import { AlertZoneBanner } from '../../notifications/components/AlertZoneBanner';
-import { AlertZoneSheet } from '../../notifications/components/AlertZoneSheet';
-import { EmptyState, ErrorState, SkeletonBlock } from '../../../components/ScreenState';
-import { RootTabParamList } from '../../../navigation/types';
-import { EarthquakeFilterSheet } from '../components/EarthquakeFilterSheet';
-import { EmergencyStatusModal } from '../../emergency/components/EmergencyStatusModal';
-import { useTranslation } from '../../../hooks/useTranslation';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from "@expo/vector-icons";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { useNavigation } from "@react-navigation/native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  EmptyState,
+  ErrorState,
+  SkeletonBlock,
+} from "../../../components/ScreenState";
+import { useTranslation } from "../../../hooks/useTranslation";
+import { RootTabParamList } from "../../../navigation/types";
+import { useAppSelector } from "../../../store/hooks";
+import { useAppTheme } from "../../../theme/ThemeProvider";
+import { EmergencyStatusModal } from "../../emergency/components/EmergencyStatusModal";
+import { AlertZoneBanner } from "../../notifications/components/AlertZoneBanner";
+import { AlertZoneSheet } from "../../notifications/components/AlertZoneSheet";
+import { EarthquakeFilterSheet } from "../components/EarthquakeFilterSheet";
+import { EarthquakeListItem } from "../components/EarthquakeListItem";
+import { EarthquakeStatsBanner } from "../components/EarthquakeStatsBanner";
+import { EarthquakeStatsSheet } from "../components/EarthquakeStatsSheet";
+import { LastEarthquakeCard } from "../components/LastEarthquakeCard";
+import { useEarthquakes, useLatestEarthquake } from "../hooks/useEarthquakes";
+import { Earthquake } from "../types/earthquake.types";
 
 /**
  * PRD §7 - Ana Sayfa
  * - Son deprem kartı
- * - Güvendeyim / Acil Mesaj (SMS & WhatsApp 0 TL)
+ * - Güvendeyim / Acil Mesaj (SMS & WhatsApp)
  * - Kişisel Deprem Alarmı & Bölgesi
  * - Bölgesel deprem hareketliliği & İstatistikler
  * - Deprem listesi
@@ -43,19 +55,16 @@ export const HomeScreen: React.FC = () => {
 
   const handleSelectEarthquake = useCallback(
     (earthquake: Earthquake) => {
-      navigation.navigate('Map', {
+      navigation.navigate("Map", {
         focusedEarthquakeId: earthquake.id,
         focusedEarthquake: earthquake,
       });
     },
-    [navigation]
+    [navigation],
   );
 
   // Son depremi her zaman çekiyoruz (filtrelerden bağımsız en güncel deprem)
-  const {
-    data: latest,
-    isLoading: isLatestLoading,
-  } = useLatestEarthquake();
+  const { data: latest, isLoading: isLatestLoading } = useLatestEarthquake();
 
   // Deprem listesini seçili filtrelere göre çekiyoruz
   const {
@@ -90,23 +99,38 @@ export const HomeScreen: React.FC = () => {
   }, [refetch]);
 
   if (isError) {
-    return <ErrorState message={language === 'tr' ? 'Deprem verileri alınamadı.' : 'Could not fetch earthquake data.'} onRetry={refetch} />;
+    return (
+      <ErrorState
+        message={
+          language === "tr"
+            ? "Deprem verileri alınamadı."
+            : "Could not fetch earthquake data."
+        }
+        onRetry={refetch}
+      />
+    );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
       <FlatList
         data={paginatedEarthquakes}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <EarthquakeListItem earthquake={item} onPress={handleSelectEarthquake} />
+          <EarthquakeListItem
+            earthquake={item}
+            onPress={handleSelectEarthquake}
+          />
         )}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.2}
         ListFooterComponent={() => {
           if (!earthquakes || visibleCount >= earthquakes.length) return null;
           return (
-            <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+            <View style={{ paddingVertical: 16, alignItems: "center" }}>
               <ActivityIndicator size="small" color={colors.primary} />
             </View>
           );
@@ -123,11 +147,16 @@ export const HomeScreen: React.FC = () => {
             {isLatestLoading ? (
               <SkeletonBlock height={96} />
             ) : latest ? (
-              <LastEarthquakeCard earthquake={latest} onPress={() => handleSelectEarthquake(latest)} />
+              <LastEarthquakeCard
+                earthquake={latest}
+                onPress={() => handleSelectEarthquake(latest)}
+              />
             ) : null}
 
             {/* Kişisel Deprem Alarmı & Bölgesi Kartı */}
-            <AlertZoneBanner onOpenAlertSheet={() => setAlertZoneSheetVisible(true)} />
+            <AlertZoneBanner
+              onOpenAlertSheet={() => setAlertZoneSheetVisible(true)}
+            />
 
             {/* Bölgesel Deprem Hareketliliği ve İstatistik Özeti */}
             {earthquakes && earthquakes.length > 0 && (
@@ -136,30 +165,58 @@ export const HomeScreen: React.FC = () => {
                 onOpenStats={() => setStatsSheetVisible(true)}
               />
             )}
-            
+
             {/* Filtre Başlığı ve Butonları */}
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.onSurface }]}>
-                {language === 'tr' ? `Son Depremler (${earthquakes?.length ?? 0})` : `Recent Earthquakes (${earthquakes?.length ?? 0})`}
+                {language === "tr"
+                  ? `Son Depremler (${earthquakes?.length ?? 0})`
+                  : `Recent Earthquakes (${earthquakes?.length ?? 0})`}
               </Text>
 
               <View style={styles.headerActionRow}>
                 <TouchableOpacity
-                  style={[styles.filterButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                  style={[
+                    styles.filterButton,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                    },
+                  ]}
                   onPress={() => setStatsSheetVisible(true)}
                 >
-                  <Ionicons name="stats-chart-outline" size={15} color={colors.primary} />
-                  <Text style={[styles.filterButtonText, { color: colors.primary }]}>
-                    {language === 'tr' ? 'Analiz' : 'Analytics'}
+                  <Ionicons
+                    name="stats-chart-outline"
+                    size={15}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={[styles.filterButtonText, { color: colors.primary }]}
+                  >
+                    {language === "tr" ? "Analiz" : "Analytics"}
                   </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity 
-                  style={[styles.filterButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                <TouchableOpacity
+                  style={[
+                    styles.filterButton,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                    },
+                  ]}
                   onPress={() => setFilterSheetVisible(true)}
                 >
-                  <Ionicons name="funnel-outline" size={15} color={colors.primary} />
-                  <Text style={[styles.filterButtonText, { color: colors.primary }]}>{t('filter')}</Text>
+                  <Ionicons
+                    name="funnel-outline"
+                    size={15}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={[styles.filterButtonText, { color: colors.primary }]}
+                  >
+                    {t("filter")}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -168,16 +225,32 @@ export const HomeScreen: React.FC = () => {
             {(filters.minMagnitude || filters.radiusKm) && (
               <View style={styles.chipsRow}>
                 {filters.minMagnitude && (
-                  <View style={[styles.chip, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '30' }]}>
+                  <View
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor: colors.primary + "15",
+                        borderColor: colors.primary + "30",
+                      },
+                    ]}
+                  >
                     <Text style={[styles.chipText, { color: colors.primary }]}>
-                      {t('magnitude')}: {filters.minMagnitude}+
+                      {t("magnitude")}: {filters.minMagnitude}+
                     </Text>
                   </View>
                 )}
                 {filters.radiusKm && (
-                  <View style={[styles.chip, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '30' }]}>
+                  <View
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor: colors.primary + "15",
+                        borderColor: colors.primary + "30",
+                      },
+                    ]}
+                  >
                     <Text style={[styles.chipText, { color: colors.primary }]}>
-                      {t('distance')}: {filters.radiusKm} km
+                      {t("distance")}: {filters.radiusKm} km
                     </Text>
                   </View>
                 )}
@@ -188,8 +261,14 @@ export const HomeScreen: React.FC = () => {
         ListEmptyComponent={
           !isLoading ? (
             <EmptyState
-              title={language === 'tr' ? 'Deprem Bulunamadı' : 'No Earthquakes Found'}
-              description={language === 'tr' ? 'Seçtiğiniz kriterlere uygun deprem kaydı bulunamadı.' : 'No earthquakes match your filter criteria.'}
+              title={
+                language === "tr" ? "Deprem Bulunamadı" : "No Earthquakes Found"
+              }
+              description={
+                language === "tr"
+                  ? "Seçtiğiniz kriterlere uygun deprem kaydı bulunamadı."
+                  : "No earthquakes match your filter criteria."
+              }
             />
           ) : (
             <View style={styles.skeletonContainer}>
@@ -240,21 +319,21 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   safetyBroadCastBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 12,
     borderRadius: 16,
     borderWidth: 1,
-    shadowColor: '#000000',
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 2,
   },
   safetyBannerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     flex: 1,
   },
@@ -262,9 +341,9 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#007AFF",
+    justifyContent: "center",
+    alignItems: "center",
   },
   safetyTextGroup: {
     flex: 1,
@@ -272,11 +351,11 @@ const styles = StyleSheet.create({
   },
   safetyBannerTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   safetyBannerSubText: {
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   quickBadge: {
     paddingVertical: 4,
@@ -284,28 +363,28 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   quickBadgeText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginTop: 4,
   },
   sectionTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   headerActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -314,10 +393,10 @@ const styles = StyleSheet.create({
   },
   filterButtonText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   chipsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
   chip: {
@@ -328,7 +407,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   skeletonContainer: {
     paddingHorizontal: 16,

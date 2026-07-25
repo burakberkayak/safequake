@@ -28,6 +28,8 @@ export const translations = {
     error: 'Hata',
     success: 'Başarılı',
     info: 'Bilgi',
+    guestUser: 'Misafir Kullanıcı',
+    noEmailProvided: 'E-posta belirtilmemiş',
 
     // Home
     filter: 'Filtrele',
@@ -150,6 +152,8 @@ export const translations = {
     error: 'Error',
     success: 'Success',
     info: 'Info',
+    guestUser: 'Guest User',
+    noEmailProvided: 'Email not provided',
 
     // Home
     filter: 'Filter',

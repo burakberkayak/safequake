@@ -100,7 +100,7 @@ export const useAuth = () => {
       dispatch(setUser({
         uid: 'demo-anon-user',
         email: null,
-        displayName: 'Misafir Kullanıcı',
+        displayName: null,
         phoneNumber: null,
       }));
       return;
@@ -112,7 +112,7 @@ export const useAuth = () => {
       dispatch(setUser({
         uid: firebaseUser.uid,
         email: null,
-        displayName: 'Misafir Kullanıcı',
+        displayName: null,
         phoneNumber: null,
       }));
     } catch (err: any) {
